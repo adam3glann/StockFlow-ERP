@@ -23,6 +23,7 @@
 .settings-danger-card { -fx-border-color: #7F3438; }
 .danger-button { -fx-background-color: #B9434B; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 9 16; -fx-background-radius: 6; }
 .danger-button:hover { -fx-background-color: #D65C63; }
+.branch-label { -fx-text-fill: #A7B4C5; -fx-font-size: 12px; }
 
 .label, .check-box, .radio-button, .toggle-button, .hyperlink {
     -fx-text-fill: #E8EDF4;

@@ -18,6 +18,8 @@ import java.util.Optional;
 
 public class SettingsView extends BorderPane {
     private final ComboBox<String> languageComboBox = new ComboBox<>();
+    private final TextField branchNameField = new TextField();
+    private final TextField branchLocationField = new TextField();
     private final CheckBox darkModeCheckBox = new CheckBox(LanguageManager.get("settings.dark.mode"));
     private final Button saveButton = new Button(LanguageManager.get("save"));
     private final Button resetButton = new Button(LanguageManager.get("settings.reset.button"));
@@ -38,13 +40,23 @@ public class SettingsView extends BorderPane {
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
         darkModeCheckBox.setWrapText(true);
 
+        branchNameField.setPromptText(LanguageManager.get("branch.name.prompt"));
+        branchLocationField.setPromptText(LanguageManager.get("branch.location.prompt"));
+
+        VBox branchInfo = new VBox(14,
+                sectionTitle("branch.settings.title"),
+                labeledControl(LanguageManager.get("branch.name"), branchNameField),
+                labeledControl(LanguageManager.get("branch.location"), branchLocationField));
+        branchInfo.getStyleClass().add("settings-card");
+
         VBox appearance = new VBox(14,
                 sectionTitle("settings.appearance"),
                 labeledControl(LanguageManager.get("language"), languageComboBox),
-                darkModeCheckBox,
-                saveButton);
+                darkModeCheckBox);
         appearance.getStyleClass().add("settings-card");
         saveButton.getStyleClass().add("primary-button");
+        HBox saveRow = new HBox(saveButton);
+        saveRow.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
 
         Label resetDescription = new Label(LanguageManager.get("settings.reset.description"));
         resetDescription.setWrapText(true);
@@ -57,7 +69,7 @@ public class SettingsView extends BorderPane {
         VBox reset = new VBox(12, sectionTitle("settings.reset.title"), resetDescription, kept, cleared, resetButton);
         reset.getStyleClass().addAll("settings-card", "settings-danger-card");
 
-        VBox content = new VBox(18, title, appearance, reset);
+        VBox content = new VBox(18, title, branchInfo, appearance, saveRow, reset);
         content.setMaxWidth(720);
         VBox.setVgrow(content, Priority.NEVER);
         setCenter(content);
@@ -79,6 +91,10 @@ public class SettingsView extends BorderPane {
 
     private void loadSettings() {
         darkModeCheckBox.setSelected(SettingsManager.isDarkMode());
+        String configuredName = SettingsManager.getBranchName();
+        branchNameField.setText(configuredName.isBlank()
+                ? LanguageManager.get("branch.default.name") : configuredName);
+        branchLocationField.setText(SettingsManager.getBranchLocation());
         languageComboBox.setValue("ar".equals(LanguageManager.getLocale().getLanguage())
                 ? LanguageManager.get("arabic") : LanguageManager.get("english"));
     }
@@ -90,11 +106,17 @@ public class SettingsView extends BorderPane {
         }
         Locale locale = languageComboBox.getValue().equals(LanguageManager.get("arabic"))
                 ? Locale.forLanguageTag("ar") : Locale.ENGLISH;
-        if (!SettingsManager.save(locale, darkModeCheckBox.isSelected())) {
+        if (branchNameField.getText() == null || branchNameField.getText().isBlank()) {
+            showMessage(Alert.AlertType.WARNING, "settings.error.title", "branch.name.required");
+            return;
+        }
+        if (!SettingsManager.save(locale, darkModeCheckBox.isSelected(),
+                branchNameField.getText(), branchLocationField.getText())) {
             showMessage(Alert.AlertType.ERROR, "error", "settings.save.failed");
             return;
         }
         LanguageManager.setLanguage(locale);
+        SettingsManager.refreshBranchDisplay();
         if (getScene() != null) ThemeManager.applyTheme(getScene());
         showMessage(Alert.AlertType.INFORMATION, null, "settings.saved.restart");
     }

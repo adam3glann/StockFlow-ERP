@@ -20,6 +20,7 @@
     -fx-background-radius: 6;
 }
 .danger-button:hover { -fx-background-color: #991B1B; }
+.branch-label { -fx-text-fill: #64748B; -fx-font-size: 12px; }
 
 /* ===== Top Bar ===== */
 

@@ -9,6 +9,7 @@ import com.adam.warehouse.session.SessionManager;
 
 import com.adam.warehouse.util.LanguageManager;
 import com.adam.warehouse.util.PermissionManager;
+import com.adam.warehouse.util.SettingsManager;
 
 import javafx.geometry.Pos;
 
@@ -25,6 +26,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 
 import javafx.scene.layout.VBox;
+import javafx.beans.binding.Bindings;
 
 import javafx.scene.text.Font;
 
@@ -170,11 +172,20 @@ public class DashboardView extends BorderPane {
 
 
 
+        Label branch = new Label();
+        branch.getStyleClass().add("branch-label");
+        branch.textProperty().bind(Bindings.createStringBinding(
+                () -> String.format(LanguageManager.get("branch.header.title"),
+                        SettingsManager.branchDisplayProperty().get()),
+                SettingsManager.branchDisplayProperty()));
+
+        VBox branding = new VBox(2, title, branch);
+
         HBox top = new HBox(
 
                 16,
 
-                title,
+                branding,
 
                 userDetails,
 
@@ -190,7 +201,7 @@ public class DashboardView extends BorderPane {
 
         HBox.setHgrow(
 
-                title,
+                branding,
 
                 Priority.ALWAYS
 
