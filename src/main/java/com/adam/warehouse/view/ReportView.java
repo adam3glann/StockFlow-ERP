@@ -46,6 +46,13 @@ public class ReportView extends BorderPane {
     private final Label profit = new Label();
     private final Label returns = new Label();
     private final Label grossProfitLessRefunds = new Label();
+    private final Label discounts = new Label();
+    private final Label tax = new Label();
+    private final Label collected = new Label();
+    private final Label balanceDue = new Label();
+    private final Label cashCollected = new Label();
+    private final Label cardCollected = new Label();
+    private final Label transferCollected = new Label();
     private final Label inventory = new Label();
     private final Label transactions = new Label();
     private final Label productsSold = new Label();
@@ -112,6 +119,13 @@ public class ReportView extends BorderPane {
         addMetric(metrics, LanguageManager.get("report.metric.low.stock"), lowStock, 2, 2);
         addMetric(metrics, LanguageManager.get("report.metric.returns"), returns, 0, 3);
         addMetric(metrics, LanguageManager.get("report.metric.gross.profit.after.refunds"), grossProfitLessRefunds, 1, 3);
+        addMetric(metrics, LanguageManager.get("report.metric.discounts"), discounts, 2, 3);
+        addMetric(metrics, LanguageManager.get("report.metric.tax"), tax, 0, 4);
+        addMetric(metrics, LanguageManager.get("report.metric.collected"), collected, 1, 4);
+        addMetric(metrics, LanguageManager.get("report.metric.balance.due"), balanceDue, 2, 4);
+        addMetric(metrics, LanguageManager.get("report.payment.cash"), cashCollected, 0, 5);
+        addMetric(metrics, LanguageManager.get("report.payment.card"), cardCollected, 1, 5);
+        addMetric(metrics, LanguageManager.get("report.payment.transfer"), transferCollected, 2, 5);
 
         Label topProductsTitle = new Label(LanguageManager.get("report.top.products"));
         topProductsTitle.getStyleClass().add("section-title");
@@ -157,6 +171,13 @@ public class ReportView extends BorderPane {
             profit.setText(currency(summary.getTotalProfit()));
             returns.setText(currency(summary.getTotalReturns()));
             grossProfitLessRefunds.setText(currency(summary.getGrossProfitLessRefunds()));
+            discounts.setText(currency(summary.getTotalDiscounts()));
+            tax.setText(currency(summary.getTotalTax()));
+            collected.setText(currency(summary.getTotalCollected()));
+            balanceDue.setText(currency(summary.getOutstandingBalance()));
+            cashCollected.setText(currency(summary.getCashCollected()));
+            cardCollected.setText(currency(summary.getCardCollected()));
+            transferCollected.setText(currency(summary.getTransferCollected()));
             inventory.setText(isToday ? "—" : currency(summary.getInventoryValue()));
             transactions.setText(String.valueOf(summary.getTotalTransactions()));
             productsSold.setText(String.valueOf(summary.getTotalProductsSold()));
@@ -204,6 +225,13 @@ public class ReportView extends BorderPane {
                     List.of(LanguageManager.get("report.metric.gross.profit"), currency(summary.getTotalProfit())),
                     List.of(LanguageManager.get("report.metric.returns"), currency(summary.getTotalReturns())),
                     List.of(LanguageManager.get("report.metric.gross.profit.after.refunds"), currency(summary.getGrossProfitLessRefunds())),
+                    List.of(LanguageManager.get("report.metric.discounts"), currency(summary.getTotalDiscounts())),
+                    List.of(LanguageManager.get("report.metric.tax"), currency(summary.getTotalTax())),
+                    List.of(LanguageManager.get("report.metric.collected"), currency(summary.getTotalCollected())),
+                    List.of(LanguageManager.get("report.metric.balance.due"), currency(summary.getOutstandingBalance())),
+                    List.of(LanguageManager.get("report.payment.cash"), currency(summary.getCashCollected())),
+                    List.of(LanguageManager.get("report.payment.card"), currency(summary.getCardCollected())),
+                    List.of(LanguageManager.get("report.payment.transfer"), currency(summary.getTransferCollected())),
                     List.of(LanguageManager.get("report.metric.inventory.value"), currency(summary.getInventoryValue())),
                     List.of(LanguageManager.get("report.metric.transactions"), String.valueOf(summary.getTotalTransactions())),
                     List.of(LanguageManager.get("report.metric.products.sold"), String.valueOf(summary.getTotalProductsSold())),

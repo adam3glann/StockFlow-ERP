@@ -56,7 +56,7 @@ public class ReturnDialog extends BaseDialog {
         remaining.setCellValueFactory(new PropertyValueFactory<>("remainingQuantity"));
 
         TableColumn<ReturnLineRow, Double> price = new TableColumn<>(LanguageManager.get("return.column.unit.price"));
-        price.setCellValueFactory(new PropertyValueFactory<>("unitPrice"));
+        price.setCellValueFactory(cell -> new javafx.beans.property.SimpleObjectProperty<>(cell.getValue().unitPrice()));
 
         TableColumn<ReturnLineRow, Integer> qty = new TableColumn<>(LanguageManager.get("return.column.quantity"));
         qty.setCellValueFactory(cell -> cell.getValue().returnQuantityProperty().asObject());

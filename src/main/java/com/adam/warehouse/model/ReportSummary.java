@@ -25,6 +25,14 @@ public class ReportSummary {
     private int lowStockProducts;
 
     private double totalReturns;
+    private double totalTax;
+    private double totalDiscounts;
+    private double totalCollected;
+    private double outstandingBalance;
+    private double cashCollected;
+    private double cardCollected;
+    private double transferCollected;
+    private double otherCollected;
 
     public ReportSummary() {
     }
@@ -36,6 +44,23 @@ public class ReportSummary {
     public void setTotalReturns(double totalReturns) {
         this.totalReturns = totalReturns;
     }
+
+    public double getTotalTax() { return totalTax; }
+    public void setTotalTax(double value) { totalTax = value; }
+    public double getTotalDiscounts() { return totalDiscounts; }
+    public void setTotalDiscounts(double value) { totalDiscounts = value; }
+    public double getTotalCollected() { return totalCollected; }
+    public void setTotalCollected(double value) { totalCollected = value; }
+    public double getOutstandingBalance() { return outstandingBalance; }
+    public void setOutstandingBalance(double value) { outstandingBalance = value; }
+    public double getCashCollected() { return cashCollected; }
+    public void setCashCollected(double value) { cashCollected = value; }
+    public double getCardCollected() { return cardCollected; }
+    public void setCardCollected(double value) { cardCollected = value; }
+    public double getTransferCollected() { return transferCollected; }
+    public void setTransferCollected(double value) { transferCollected = value; }
+    public double getOtherCollected() { return otherCollected; }
+    public void setOtherCollected(double value) { otherCollected = value; }
 
     /** Gross profit minus refunds issued in the same period; operating expenses are not included. */
     public double getGrossProfitLessRefunds() {

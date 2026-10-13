@@ -4,6 +4,7 @@ import com.adam.warehouse.model.Purchase;
 import com.adam.warehouse.model.PurchaseItem;
 import com.adam.warehouse.model.Sale;
 import com.adam.warehouse.model.SaleItem;
+import com.adam.warehouse.model.BranchIdentity;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
@@ -17,10 +18,18 @@ public final class InvoiceExportUtil {
     public static void sale(Path path, Sale sale) throws IOException {
         List<List<String>> rows = header(String.format(LanguageManager.get("invoice.sale.title"), sale.getSaleId()), sale.getSaleDate(),
                 LanguageManager.get("invoice.customer"), blankAsWalkIn(sale.getCustomerName()));
+        BranchIdentity branch = BranchIdentityManager.get();
+        rows.add(List.of(LanguageManager.get("branch.code"), branch.code()));
+        rows.add(List.of(LanguageManager.get("branch.name"), branch.name()));
+        if (branch.location() != null && !branch.location().isBlank()) rows.add(List.of(LanguageManager.get("branch.location"), branch.location()));
         rows.add(List.of(LanguageManager.get("invoice.product"), LanguageManager.get("invoice.quantity"),
                 LanguageManager.get("invoice.unit.price"), LanguageManager.get("invoice.subtotal")));
         for (SaleItem item : sale.getItems()) rows.add(List.of(item.getProductName(), String.valueOf(item.getQuantity()), money(item.getSellingPrice()), money(item.getSubtotal())));
+        rows.add(List.of("", "", LanguageManager.get("report.metric.discounts"), money(sale.getDiscountAmount())));
+        rows.add(List.of("", "", LanguageManager.get("report.metric.tax") + " (" + sale.getTaxRate() + "%)", money(sale.getTaxAmount())));
         rows.add(List.of("", "", LanguageManager.get("invoice.total"), money(sale.getTotalAmount())));
+        rows.add(List.of("", "", LanguageManager.get("report.metric.collected"), money(sale.getAmountPaid())));
+        rows.add(List.of("", "", LanguageManager.get("report.metric.balance.due"), money(sale.getBalanceDue())));
         if (sale.getNotes() != null && !sale.getNotes().isBlank()) rows.add(List.of(LanguageManager.get("invoice.notes"), sale.getNotes()));
         CsvExportUtil.write(path, rows);
     }

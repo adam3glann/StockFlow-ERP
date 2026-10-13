@@ -5,6 +5,7 @@ import com.adam.warehouse.model.InventoryMovement;
 import com.adam.warehouse.model.Return;
 import com.adam.warehouse.model.ReturnItem;
 import com.adam.warehouse.model.ReturnableItem;
+import com.adam.warehouse.util.MoneyValidation;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ public class ReturnDAO {
     // Locks the sale_item row so two concurrent returns against the same line item
     // can't both pass the "enough left to return" check.
     private static final String LOCK_SALE_ITEM = """
-            SELECT si.quantity, si.product_id, si.selling_price, p.name AS product_name
+            SELECT si.quantity, si.product_id, si.refund_limit, p.name AS product_name
             FROM sale_items si
             JOIN products p ON p.product_id = si.product_id
             WHERE si.sale_item_id = ? AND si.sale_id = ?
@@ -44,7 +45,8 @@ public class ReturnDAO {
             """;
 
     private static final String ALREADY_RETURNED = """
-            SELECT COALESCE(SUM(quantity), 0)
+            SELECT COALESCE(SUM(quantity), 0) AS returned_quantity,
+                   COALESCE(SUM(refund_amount), 0) AS refunded_amount
             FROM return_items
             WHERE sale_item_id = ?
             """;
@@ -58,12 +60,13 @@ public class ReturnDAO {
 
     private static final String GET_RETURNABLE_ITEMS = """
             SELECT si.sale_item_id, si.product_id, p.name AS product_name,
-                   si.quantity AS sold_quantity, si.selling_price,
-                   COALESCE(ri.returned_quantity, 0) AS returned_quantity
+                   si.quantity AS sold_quantity, si.refund_limit,
+                   COALESCE(ri.returned_quantity, 0) AS returned_quantity,
+                   COALESCE(ri.refunded_amount, 0) AS refunded_amount
             FROM sale_items si
             JOIN products p ON p.product_id = si.product_id
             LEFT JOIN (
-                SELECT sale_item_id, SUM(quantity) AS returned_quantity
+                SELECT sale_item_id, SUM(quantity) AS returned_quantity, SUM(refund_amount) AS refunded_amount
                 FROM return_items
                 GROUP BY sale_item_id
             ) ri ON ri.sale_item_id = si.sale_item_id
@@ -155,6 +158,7 @@ public class ReturnDAO {
 
         int soldQuantity;
         String productName;
+        double refundLimit;
 
         try (PreparedStatement lock = connection.prepareStatement(LOCK_SALE_ITEM)) {
             lock.setInt(1, item.getSaleItemId());
@@ -165,6 +169,7 @@ public class ReturnDAO {
                 }
                 soldQuantity = rs.getInt("quantity");
                 productName = rs.getString("product_name");
+                refundLimit = rs.getDouble("refund_limit");
                 if (rs.getInt("product_id") != item.getProductId()) {
                     throw new IllegalArgumentException("Sale item does not match the selected product.");
                 }
@@ -172,10 +177,17 @@ public class ReturnDAO {
         }
 
         int alreadyReturned;
+        double alreadyRefunded;
         try (PreparedStatement statement = connection.prepareStatement(ALREADY_RETURNED)) {
             statement.setInt(1, item.getSaleItemId());
             try (ResultSet rs = statement.executeQuery()) {
-                alreadyReturned = rs.next() ? rs.getInt(1) : 0;
+                if (rs.next()) {
+                    alreadyReturned = rs.getInt("returned_quantity");
+                    alreadyRefunded = rs.getDouble("refunded_amount");
+                } else {
+                    alreadyReturned = 0;
+                    alreadyRefunded = 0;
+                }
             }
         }
 
@@ -189,6 +201,12 @@ public class ReturnDAO {
             throw new IllegalArgumentException(
                     "Cannot return " + item.getQuantity() + " of " + productName
                             + " — only " + remaining + " remaining eligible for return.");
+        }
+
+        double remainingRefundable = Math.max(0, refundLimit - alreadyRefunded);
+        if (!MoneyValidation.isValid(item.getRefundAmount())
+                || item.getRefundAmount() > remainingRefundable + 0.005) {
+            throw new IllegalArgumentException("Refund amount exceeds the remaining refundable sale value.");
         }
 
         try (PreparedStatement statement = connection.prepareStatement(INSERT_ITEM)) {
@@ -247,7 +265,8 @@ public class ReturnDAO {
                             rs.getString("product_name"),
                             rs.getInt("sold_quantity"),
                             rs.getInt("returned_quantity"),
-                            rs.getDouble("selling_price")
+                            rs.getDouble("refund_limit"),
+                            rs.getDouble("refunded_amount")
                     ));
                 }
             }

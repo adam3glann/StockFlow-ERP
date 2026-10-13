@@ -15,6 +15,21 @@ CREATE TABLE IF NOT EXISTS employees (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Branch identity belongs to this branch's database so every connected client
+-- displays the same branch label. Each branch server uses its own database.
+CREATE TABLE IF NOT EXISTS branch_settings (
+    singleton_id INTEGER PRIMARY KEY DEFAULT 1 CHECK (singleton_id = 1),
+    branch_code VARCHAR(24) NOT NULL DEFAULT 'MAIN',
+    branch_name VARCHAR(180) NOT NULL DEFAULT 'Main Branch',
+    branch_location VARCHAR(300),
+    tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (tax_rate >= 0 AND tax_rate <= 100),
+    updated_by INTEGER REFERENCES employees(employee_id) ON DELETE SET NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO branch_settings (singleton_id, branch_code, branch_name, branch_location)
+VALUES (1, 'MAIN', 'Main Branch', '')
+ON CONFLICT (singleton_id) DO NOTHING;
+
 -- No account or password is seeded. On a fresh database, the application presents a
 -- one-time administrator setup screen and stores the chosen password as a PBKDF2 hash.
 
@@ -81,6 +96,10 @@ CREATE TABLE IF NOT EXISTS sales (
     customer_id INTEGER REFERENCES customers(customer_id),
     employee_id INTEGER NOT NULL REFERENCES employees(employee_id),
     sale_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    subtotal_amount NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (subtotal_amount >= 0),
+    discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
+    tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (tax_rate >= 0 AND tax_rate <= 100),
+    tax_amount NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (tax_amount >= 0),
     total_amount NUMERIC(14,2) NOT NULL CHECK (total_amount >= 0),
     notes TEXT
 );
@@ -88,6 +107,10 @@ CREATE TABLE IF NOT EXISTS sales (
 -- Safe upgrades for databases created by the earlier project versions.
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES customers(customer_id);
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS subtotal_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS sale_items (
     sale_item_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -96,11 +119,13 @@ CREATE TABLE IF NOT EXISTS sale_items (
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     selling_price NUMERIC(14,2) NOT NULL CHECK (selling_price > 0),
     cost_price NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (cost_price >= 0),
-    subtotal NUMERIC(14,2) NOT NULL CHECK (subtotal >= 0)
+    subtotal NUMERIC(14,2) NOT NULL CHECK (subtotal >= 0),
+    refund_limit NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (refund_limit >= 0)
 );
 
 -- Safe upgrade for databases created before cost_price was tracked per sale item.
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS cost_price NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS refund_limit NUMERIC(14,2) NOT NULL DEFAULT 0;
 
 -- This historical backfill is necessarily approximate. Record completion so that later
 -- product cost edits and legitimate zero-cost sale items are never rewritten on startup.
@@ -108,6 +133,64 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     version VARCHAR(120) PRIMARY KEY,
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Repair earlier purchases whose header total was left at zero despite saved lines.
+DO $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(4815162342);
+    IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 'purchase_zero_totals_repair_v1') THEN
+        UPDATE purchases p
+        SET total_amount = lines.item_total
+        FROM (
+            SELECT purchase_id, SUM(subtotal) AS item_total
+            FROM purchase_items
+            GROUP BY purchase_id
+        ) lines
+        WHERE p.purchase_id = lines.purchase_id
+          AND p.total_amount = 0
+          AND lines.item_total > 0;
+        INSERT INTO schema_migrations(version) VALUES ('purchase_zero_totals_repair_v1');
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(4815162342);
+    IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 'sale_discount_and_refund_limits_v1') THEN
+        UPDATE sales SET subtotal_amount = total_amount WHERE subtotal_amount = 0 AND total_amount > 0;
+        UPDATE sale_items SET refund_limit = subtotal WHERE refund_limit = 0 AND subtotal > 0;
+        INSERT INTO schema_migrations(version) VALUES ('sale_discount_and_refund_limits_v1');
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS sale_payments (
+    payment_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    sale_id INTEGER NOT NULL REFERENCES sales(sale_id) ON DELETE CASCADE,
+    employee_id INTEGER NOT NULL REFERENCES employees(employee_id),
+    payment_method VARCHAR(24) NOT NULL CHECK (payment_method IN ('CASH', 'CARD', 'BANK_TRANSFER', 'OTHER', 'LEGACY')),
+    amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+    amount_tendered NUMERIC(14,2) NOT NULL CHECK (amount_tendered >= amount),
+    change_due NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (change_due >= 0),
+    reference VARCHAR(120),
+    payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sale_payments_sale ON sale_payments(sale_id, payment_date);
+CREATE INDEX IF NOT EXISTS idx_sale_payments_date ON sale_payments(payment_date DESC);
+
+-- Before payment tracking existed, every saved sale represented a completed sale.
+-- Preserve that meaning with a one-time legacy payment for historic records.
+DO $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(4815162342);
+    IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 'sale_payment_ledger_v1') THEN
+        INSERT INTO sale_payments (sale_id, employee_id, payment_method, amount, amount_tendered, change_due, payment_date)
+        SELECT s.sale_id, s.employee_id, 'LEGACY', s.total_amount, s.total_amount, 0, s.sale_date
+        FROM sales s
+        WHERE s.total_amount > 0
+          AND NOT EXISTS (SELECT 1 FROM sale_payments p WHERE p.sale_id = s.sale_id);
+        INSERT INTO schema_migrations(version) VALUES ('sale_payment_ledger_v1');
+    END IF;
+END $$;
 DO $$
 BEGIN
     PERFORM pg_advisory_xact_lock(4815162342);

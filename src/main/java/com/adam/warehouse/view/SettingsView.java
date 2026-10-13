@@ -1,7 +1,9 @@
 package com.adam.warehouse.view;
 
 import com.adam.warehouse.service.ApplicationResetService;
+import com.adam.warehouse.service.BranchSettingsService;
 import com.adam.warehouse.util.AlertUtil;
+import com.adam.warehouse.util.BranchIdentityManager;
 import com.adam.warehouse.util.LanguageManager;
 import com.adam.warehouse.util.PermissionManager;
 import com.adam.warehouse.util.SettingsManager;
@@ -18,10 +20,13 @@ import java.util.Optional;
 
 public class SettingsView extends BorderPane {
     private final ComboBox<String> languageComboBox = new ComboBox<>();
+    private final TextField branchCodeField = new TextField();
     private final TextField branchNameField = new TextField();
     private final TextField branchLocationField = new TextField();
+    private final TextField branchTaxRateField = new TextField();
     private final CheckBox darkModeCheckBox = new CheckBox(LanguageManager.get("settings.dark.mode"));
     private final Button saveButton = new Button(LanguageManager.get("save"));
+    private final Button saveBranchButton = new Button(LanguageManager.get("branch.save"));
     private final Button resetButton = new Button(LanguageManager.get("settings.reset.button"));
 
     public SettingsView() {
@@ -40,13 +45,20 @@ public class SettingsView extends BorderPane {
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
         darkModeCheckBox.setWrapText(true);
 
+        branchCodeField.setPromptText(LanguageManager.get("branch.code.prompt"));
         branchNameField.setPromptText(LanguageManager.get("branch.name.prompt"));
         branchLocationField.setPromptText(LanguageManager.get("branch.location.prompt"));
+        branchTaxRateField.setPromptText(LanguageManager.get("branch.tax.rate.prompt"));
+        saveBranchButton.getStyleClass().add("primary-button");
+        saveBranchButton.setOnAction(event -> saveBranch());
 
         VBox branchInfo = new VBox(14,
                 sectionTitle("branch.settings.title"),
+                labeledControl(LanguageManager.get("branch.code"), branchCodeField),
                 labeledControl(LanguageManager.get("branch.name"), branchNameField),
-                labeledControl(LanguageManager.get("branch.location"), branchLocationField));
+                labeledControl(LanguageManager.get("branch.location"), branchLocationField),
+                labeledControl(LanguageManager.get("branch.tax.rate"), branchTaxRateField),
+                saveBranchButton);
         branchInfo.getStyleClass().add("settings-card");
 
         VBox appearance = new VBox(14,
@@ -91,10 +103,10 @@ public class SettingsView extends BorderPane {
 
     private void loadSettings() {
         darkModeCheckBox.setSelected(SettingsManager.isDarkMode());
-        String configuredName = SettingsManager.getBranchName();
-        branchNameField.setText(configuredName.isBlank()
-                ? LanguageManager.get("branch.default.name") : configuredName);
-        branchLocationField.setText(SettingsManager.getBranchLocation());
+        branchCodeField.setText(BranchIdentityManager.get().code());
+        branchNameField.setText(BranchIdentityManager.get().name());
+        branchLocationField.setText(BranchIdentityManager.get().location());
+        branchTaxRateField.setText(String.format(Locale.ROOT, "%.2f", BranchIdentityManager.get().taxRate()));
         languageComboBox.setValue("ar".equals(LanguageManager.getLocale().getLanguage())
                 ? LanguageManager.get("arabic") : LanguageManager.get("english"));
     }
@@ -106,19 +118,35 @@ public class SettingsView extends BorderPane {
         }
         Locale locale = languageComboBox.getValue().equals(LanguageManager.get("arabic"))
                 ? Locale.forLanguageTag("ar") : Locale.ENGLISH;
-        if (branchNameField.getText() == null || branchNameField.getText().isBlank()) {
-            showMessage(Alert.AlertType.WARNING, "settings.error.title", "branch.name.required");
-            return;
-        }
-        if (!SettingsManager.save(locale, darkModeCheckBox.isSelected(),
-                branchNameField.getText(), branchLocationField.getText())) {
+        if (!SettingsManager.save(locale, darkModeCheckBox.isSelected())) {
             showMessage(Alert.AlertType.ERROR, "error", "settings.save.failed");
             return;
         }
         LanguageManager.setLanguage(locale);
-        SettingsManager.refreshBranchDisplay();
         if (getScene() != null) ThemeManager.applyTheme(getScene());
         showMessage(Alert.AlertType.INFORMATION, null, "settings.saved.restart");
+    }
+
+    private void saveBranch() {
+        saveBranchButton.setDisable(true);
+        try {
+            double taxRate = Double.parseDouble(branchTaxRateField.getText().trim().replace(',', '.'));
+            new BranchSettingsService().save(branchCodeField.getText(), branchNameField.getText(),
+                    branchLocationField.getText(), taxRate);
+            showMessage(Alert.AlertType.INFORMATION, "success", "branch.saved");
+        } catch (NumberFormatException exception) {
+            showMessage(Alert.AlertType.WARNING, "settings.error.title", "branch.tax.rate.invalid");
+        } catch (IllegalArgumentException exception) {
+            String key = exception.getMessage();
+            showMessage(Alert.AlertType.WARNING, "settings.error.title",
+                    key != null && key.startsWith("branch.") ? key : "branch.save.failed");
+        } catch (SecurityException exception) {
+            showMessage(Alert.AlertType.ERROR, "error", "settings.reset.unauthorized");
+        } catch (RuntimeException exception) {
+            showMessage(Alert.AlertType.ERROR, "error", "branch.save.failed");
+        } finally {
+            saveBranchButton.setDisable(false);
+        }
     }
 
     private void confirmAndReset() {

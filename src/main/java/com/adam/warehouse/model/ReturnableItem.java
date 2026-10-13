@@ -11,7 +11,8 @@ public record ReturnableItem(
         String productName,
         int soldQuantity,
         int alreadyReturnedQuantity,
-        double unitPrice
+        double refundLimit,
+        double alreadyRefundedAmount
 ) {
     public int remainingQuantity() {
         return Math.max(0, soldQuantity - alreadyReturnedQuantity);
@@ -19,5 +20,11 @@ public record ReturnableItem(
 
     public boolean isFullyReturned() {
         return remainingQuantity() <= 0;
+    }
+
+    /** Spreads the exact remaining refundable balance across the remaining quantity. */
+    public double unitPrice() {
+        int remaining = remainingQuantity();
+        return remaining <= 0 ? 0 : Math.max(0, refundLimit - alreadyRefundedAmount) / remaining;
     }
 }

@@ -41,13 +41,8 @@ public class ReportDAO {
                 """));
 
         summary.setTotalProfit(getDouble("""
-                SELECT COALESCE(
-                    SUM(
-                        (si.selling_price - si.cost_price)
-                        * si.quantity
-                    ),
-                    0
-                )
+                SELECT COALESCE(SUM((si.selling_price - si.cost_price) * si.quantity),0)
+                       - COALESCE((SELECT SUM(discount_amount) FROM sales),0)
                 FROM sale_items si
                 """));
 
@@ -93,6 +88,7 @@ public class ReportDAO {
                 SELECT COALESCE(SUM(total_refund),0)
                 FROM returns
                 """));
+        populatePaymentMetrics(summary, null, null);
 
         return summary;
 
@@ -119,13 +115,9 @@ public class ReportDAO {
                 """));
 
         summary.setTotalProfit(getDouble("""
-                SELECT COALESCE(
-                    SUM(
-                        (si.selling_price - si.cost_price)
-                        * si.quantity
-                    ),
-                    0
-                )
+                SELECT COALESCE(SUM((si.selling_price - si.cost_price) * si.quantity),0)
+                       - COALESCE((SELECT SUM(discount_amount) FROM sales
+                                   WHERE sale_date >= CURRENT_DATE AND sale_date < CURRENT_DATE + INTERVAL '1 day'),0)
                 FROM sale_items si
                 JOIN sales s
                 ON s.sale_id = si.sale_id
@@ -158,6 +150,7 @@ public class ReportDAO {
                 WHERE return_date >= CURRENT_DATE
                 AND return_date < CURRENT_DATE + INTERVAL '1 day'
                 """));
+        populatePaymentMetrics(summary, LocalDate.now(), LocalDate.now().plusDays(1));
 
         return summary;
 
@@ -171,9 +164,14 @@ public class ReportDAO {
         summary.setTotalSales(getDouble("SELECT COALESCE(SUM(total_amount),0) FROM sales WHERE sale_date >= ? AND sale_date < ?", start, exclusiveEnd));
         summary.setTotalPurchases(getDouble("SELECT COALESCE(SUM(total_amount),0) FROM purchases WHERE purchase_date >= ? AND purchase_date < ?", start, exclusiveEnd));
         summary.setTotalProfit(getDouble("""
-                SELECT COALESCE(SUM((si.selling_price - si.cost_price) * si.quantity),0)
-                FROM sale_items si JOIN sales s ON s.sale_id=si.sale_id
-                WHERE s.sale_date >= ? AND s.sale_date < ?""", start, exclusiveEnd));
+                SELECT COALESCE(SUM(sale_profit),0) - COALESCE(SUM(discount_amount),0)
+                FROM (
+                    SELECT s.sale_id, s.discount_amount,
+                           COALESCE(SUM((si.selling_price - si.cost_price) * si.quantity),0) AS sale_profit
+                    FROM sales s LEFT JOIN sale_items si ON si.sale_id=s.sale_id
+                    WHERE s.sale_date >= ? AND s.sale_date < ?
+                    GROUP BY s.sale_id, s.discount_amount
+                ) sale_totals""", start, exclusiveEnd));
         summary.setTotalProductsSold(getInt("""
                 SELECT COALESCE(SUM(si.quantity),0) FROM sale_items si JOIN sales s ON s.sale_id=si.sale_id
                 WHERE s.sale_date >= ? AND s.sale_date < ?""", start, exclusiveEnd));
@@ -181,7 +179,55 @@ public class ReportDAO {
         summary.setTotalReturns(getDouble(
                 "SELECT COALESCE(SUM(total_refund),0) FROM returns WHERE return_date >= ? AND return_date < ?",
                 start, exclusiveEnd));
+        populatePaymentMetrics(summary, start, exclusiveEnd);
         return summary;
+    }
+
+    private void populatePaymentMetrics(ReportSummary summary, LocalDate start, LocalDate exclusiveEnd) {
+        String dateFilter = start == null ? "" : "WHERE sale_date >= ? AND sale_date < ?";
+        String paymentDateFilter = start == null ? "" : "WHERE payment_date >= ? AND payment_date < ?";
+        String sql = """
+                WITH selected_sales AS (
+                    SELECT sale_id, total_amount, discount_amount, tax_amount
+                    FROM sales %s
+                ), sale_paid AS (
+                    SELECT sale_id, SUM(amount) AS paid FROM sale_payments GROUP BY sale_id
+                ), receipts AS (
+                    SELECT COALESCE(SUM(amount),0) AS total,
+                           COALESCE(SUM(amount) FILTER (WHERE payment_method = 'CASH'),0) AS cash,
+                           COALESCE(SUM(amount) FILTER (WHERE payment_method = 'CARD'),0) AS card,
+                           COALESCE(SUM(amount) FILTER (WHERE payment_method = 'BANK_TRANSFER'),0) AS transfer,
+                           COALESCE(SUM(amount) FILTER (WHERE payment_method IN ('OTHER','LEGACY')),0) AS other
+                    FROM sale_payments %s
+                )
+                SELECT totals.discounts, totals.tax, r.total, totals.balance_due,
+                       r.cash, r.card, r.transfer, r.other
+                FROM (
+                    SELECT COALESCE(SUM(s.discount_amount),0) AS discounts,
+                           COALESCE(SUM(s.tax_amount),0) AS tax,
+                           COALESCE(SUM(GREATEST(s.total_amount-COALESCE(p.paid,0),0)),0) AS balance_due
+                    FROM selected_sales s LEFT JOIN sale_paid p ON p.sale_id=s.sale_id
+                ) totals CROSS JOIN receipts r
+                """.formatted(dateFilter, paymentDateFilter);
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            if (start != null) {
+                statement.setObject(1, start);
+                statement.setObject(2, exclusiveEnd);
+                statement.setObject(3, start);
+                statement.setObject(4, exclusiveEnd);
+            }
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    summary.setTotalDiscounts(rs.getDouble(1)); summary.setTotalTax(rs.getDouble(2));
+                    summary.setTotalCollected(rs.getDouble(3)); summary.setOutstandingBalance(rs.getDouble(4));
+                    summary.setCashCollected(rs.getDouble(5)); summary.setCardCollected(rs.getDouble(6));
+                    summary.setTransferCollected(rs.getDouble(7)); summary.setOtherCollected(rs.getDouble(8));
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to load sales payment summary.", e);
+        }
     }
 
     public List<TopSellingProduct> getTopSellingProducts(LocalDate start, LocalDate end, int limit) {

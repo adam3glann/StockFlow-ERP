@@ -19,6 +19,7 @@ public class SaleItem {
     private double costPrice;
 
     private double subtotal;
+    private double refundLimit;
 
     public SaleItem() {
     }
@@ -125,6 +126,9 @@ public class SaleItem {
     public void setSubtotal(double subtotal) {
         this.subtotal = subtotal;
     }
+
+    public double getRefundLimit() { return refundLimit; }
+    public void setRefundLimit(double refundLimit) { this.refundLimit = refundLimit; }
 
     public void calculateSubtotal() {
 

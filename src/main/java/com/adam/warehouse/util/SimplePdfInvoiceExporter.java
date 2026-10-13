@@ -5,6 +5,7 @@ import com.adam.warehouse.model.PurchaseItem;
 import com.adam.warehouse.model.ReportSummary;
 import com.adam.warehouse.model.Sale;
 import com.adam.warehouse.model.SaleItem;
+import com.adam.warehouse.model.BranchIdentity;
 import com.adam.warehouse.model.TopSellingProduct;
 
 import java.awt.Font;
@@ -33,6 +34,9 @@ public final class SimplePdfInvoiceExporter {
     public static void purchaseInvoice(Path path, Purchase purchase) throws IOException {
         List<String> lines = new ArrayList<>();
         lines.add(LanguageManager.get("app.title"));
+        BranchIdentity branch = BranchIdentityManager.get();
+        lines.add(branch.name() + (branch.location() == null || branch.location().isBlank() ? "" : " — " + branch.location()));
+        lines.add(LanguageManager.get("branch.code") + ": " + branch.code());
         lines.add(String.format(LanguageManager.get("invoice.purchase.title"), purchase.getPurchaseId()));
         lines.add(LanguageManager.get("invoice.date") + ": " + date(purchase.getPurchaseDate()));
         lines.add(LanguageManager.get("invoice.supplier") + ": " + safe(purchase.getSupplierName()));
@@ -54,6 +58,9 @@ public final class SimplePdfInvoiceExporter {
     public static void saleInvoice(Path path, Sale sale) throws IOException {
         List<String> lines = new ArrayList<>();
         lines.add(LanguageManager.get("app.title"));
+        BranchIdentity branch = BranchIdentityManager.get();
+        lines.add(branch.name() + (branch.location() == null || branch.location().isBlank() ? "" : " — " + branch.location()));
+        lines.add(LanguageManager.get("branch.code") + ": " + branch.code());
         lines.add(String.format(LanguageManager.get("invoice.sale.title"), sale.getSaleId()));
         lines.add(LanguageManager.get("invoice.date") + ": " + date(sale.getSaleDate()));
         lines.add(LanguageManager.get("invoice.customer") + ": " + blankAsWalkIn(sale.getCustomerName()));
@@ -66,6 +73,10 @@ public final class SimplePdfInvoiceExporter {
         }
         lines.add(separator());
         lines.add(String.format(LanguageManager.get("invoice.total.format"), sale.getTotalAmount(), LanguageManager.get("currency.egp")));
+        lines.add(LanguageManager.get("report.metric.discounts") + ": " + money(sale.getDiscountAmount()));
+        lines.add(LanguageManager.get("report.metric.tax") + " (" + sale.getTaxRate() + "%): " + money(sale.getTaxAmount()));
+        lines.add(LanguageManager.get("report.metric.collected") + ": " + money(sale.getAmountPaid()));
+        lines.add(LanguageManager.get("report.metric.balance.due") + ": " + money(sale.getBalanceDue()));
         if (sale.getNotes() != null && !sale.getNotes().isBlank()) {
             lines.add(LanguageManager.get("invoice.notes") + ": " + sale.getNotes());
         }
@@ -85,6 +96,13 @@ public final class SimplePdfInvoiceExporter {
         addMetric(lines, "report.metric.gross.profit", summary.getTotalProfit());
         addMetric(lines, "report.metric.returns", summary.getTotalReturns());
         addMetric(lines, "report.metric.gross.profit.after.refunds", summary.getGrossProfitLessRefunds());
+        addMetric(lines, "report.metric.discounts", summary.getTotalDiscounts());
+        addMetric(lines, "report.metric.tax", summary.getTotalTax());
+        addMetric(lines, "report.metric.collected", summary.getTotalCollected());
+        addMetric(lines, "report.metric.balance.due", summary.getOutstandingBalance());
+        addMetric(lines, "report.payment.cash", summary.getCashCollected());
+        addMetric(lines, "report.payment.card", summary.getCardCollected());
+        addMetric(lines, "report.payment.transfer", summary.getTransferCollected());
         addMetric(lines, "report.metric.inventory.value", summary.getInventoryValue());
         lines.add(LanguageManager.get("report.metric.transactions") + ": " + summary.getTotalTransactions());
         lines.add(LanguageManager.get("report.metric.products.sold") + ": " + summary.getTotalProductsSold());

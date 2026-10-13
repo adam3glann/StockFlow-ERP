@@ -8,8 +8,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Properties;
-import javafx.beans.property.ReadOnlyStringProperty;
-import javafx.beans.property.ReadOnlyStringWrapper;
 
 public final class SettingsManager {
 
@@ -23,9 +21,6 @@ public final class SettingsManager {
             "darkMode";
 
     private static boolean darkMode = false;
-    private static String branchName = "";
-    private static String branchLocation = "";
-    private static final ReadOnlyStringWrapper branchDisplay = new ReadOnlyStringWrapper();
 
     private static final Properties properties =
             new Properties();
@@ -59,9 +54,6 @@ public final class SettingsManager {
             darkMode = Boolean.parseBoolean(
                     properties.getProperty(DARK_MODE_KEY, "false")
             );
-            branchName = properties.getProperty("branchName", "").trim();
-            branchLocation = properties.getProperty("branchLocation", "").trim();
-            updateBranchDisplay();
 
         } catch (IOException exception) {
 
@@ -83,29 +75,13 @@ public final class SettingsManager {
         save(LanguageManager.getLocale(), enabled);
     }
 
-    public static String getBranchName() { return branchName; }
-
-    public static String getBranchLocation() { return branchLocation; }
-
-    public static ReadOnlyStringProperty branchDisplayProperty() { return branchDisplay.getReadOnlyProperty(); }
-
-    public static void refreshBranchDisplay() { updateBranchDisplay(); }
-
     /** Saves both preferences together so the UI never reports a partial save. */
     public static synchronized boolean save(Locale locale, boolean enabled) {
-        return save(locale, enabled, branchName, branchLocation);
-    }
-
-    public static synchronized boolean save(Locale locale, boolean enabled, String newBranchName, String newBranchLocation) {
         if (locale == null) return false;
-        String normalizedName = newBranchName == null ? "" : newBranchName.trim();
-        String normalizedLocation = newBranchLocation == null ? "" : newBranchLocation.trim();
         Properties updated = new Properties();
         updated.putAll(properties);
         updated.setProperty(LANGUAGE_KEY, locale.getLanguage());
         updated.setProperty(DARK_MODE_KEY, Boolean.toString(enabled));
-        updated.setProperty("branchName", normalizedName);
-        updated.setProperty("branchLocation", normalizedLocation);
         Path temporary = SETTINGS_FILE.resolveSibling(SETTINGS_FILE.getFileName() + ".tmp");
         try {
             try (OutputStream output = Files.newOutputStream(temporary)) {
@@ -119,23 +95,12 @@ public final class SettingsManager {
             properties.clear();
             properties.putAll(updated);
             darkMode = enabled;
-            branchName = normalizedName;
-            branchLocation = normalizedLocation;
-            updateBranchDisplay();
             return true;
         } catch (IOException exception) {
             try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
             System.err.println("Unable to save local application settings.");
             return false;
         }
-    }
-
-    private static void updateBranchDisplay() {
-        String displayName = branchName.isBlank() ? LanguageManager.get("branch.default.name") : branchName;
-        String displayLocation = branchLocation;
-        branchDisplay.set(displayLocation.isBlank()
-                ? displayName
-                : String.format(LanguageManager.get("branch.header.format"), displayName, displayLocation));
     }
 
 }

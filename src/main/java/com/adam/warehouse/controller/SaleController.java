@@ -2,6 +2,7 @@ package com.adam.warehouse.controller;
 
 import com.adam.warehouse.model.Sale;
 import com.adam.warehouse.service.SaleService;
+import com.adam.warehouse.enums.PaymentMethod;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
@@ -15,6 +16,10 @@ public class SaleController {
 
     public void saveSale(Sale sale) {
         saleService.saveSale(sale);
+    }
+
+    public void recordPayment(int saleId, double amount, PaymentMethod method, double tendered, String reference) {
+        saleService.recordPayment(saleId, amount, method, tendered, reference);
     }
     public ObservableList<Sale> getSales() {
 

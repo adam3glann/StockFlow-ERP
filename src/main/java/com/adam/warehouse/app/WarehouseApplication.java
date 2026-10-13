@@ -3,6 +3,7 @@ package com.adam.warehouse.app;
 import com.adam.warehouse.util.SettingsManager;
 import com.adam.warehouse.util.ThemeManager;
 import com.adam.warehouse.util.LanguageManager;
+import com.adam.warehouse.util.BranchIdentityManager;
 import com.adam.warehouse.config.DatabaseInitializer;
 import com.adam.warehouse.dao.EmployeeDAO;
 import com.adam.warehouse.view.LoginView;
@@ -21,6 +22,8 @@ public class WarehouseApplication extends Application {
 
         try {
             DatabaseInitializer.initialize();
+            BranchIdentityManager.load();
+            BranchIdentityManager.startAutoRefresh();
         } catch (Exception exception) {
             Alert alert = com.adam.warehouse.util.AlertUtil.create(Alert.AlertType.ERROR);
             alert.setTitle(LanguageManager.get("database.unavailable.title"));

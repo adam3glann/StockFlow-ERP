@@ -5,7 +5,9 @@ import com.adam.warehouse.model.Sale;
 import com.adam.warehouse.model.SaleItem;
 import com.adam.warehouse.util.LanguageManager;
 import com.adam.warehouse.view.dialog.SaleDialog;
+import com.adam.warehouse.view.dialog.PaymentDialog;
 import javafx.geometry.Insets;
+import javafx.beans.binding.Bindings;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.BorderPane;
@@ -28,6 +30,7 @@ public class SaleView extends BorderPane {
 
     private final Button newSaleButton;
     private final Button viewButton;
+    private final Button recordPaymentButton;
     private final Button refreshButton;
     private final Button exportButton = new Button(LanguageManager.get("button.export.invoice"));
     private final Button exportPdfButton = new Button(LanguageManager.get("button.export.pdf"));
@@ -47,6 +50,7 @@ public class SaleView extends BorderPane {
         viewButton = new Button(
                 LanguageManager.get("button.view")
         );
+        recordPaymentButton = new Button(LanguageManager.get("sale.payment.record"));
 
         refreshButton = new Button(
                 LanguageManager.get("refresh")
@@ -110,6 +114,8 @@ public class SaleView extends BorderPane {
 
                 viewButton,
 
+                recordPaymentButton,
+
                 exportButton,
 
                 exportPdfButton,
@@ -165,6 +171,11 @@ public class SaleView extends BorderPane {
 
         viewButton.disableProperty().bind(saleTable.getSelectionModel().selectedItemProperty().isNull());
         viewButton.setOnAction(event -> viewSaleDetails());
+        recordPaymentButton.disableProperty().bind(Bindings.createBooleanBinding(() -> {
+            Sale selected = saleTable.getSelectionModel().getSelectedItem();
+            return selected == null || selected.getBalanceDue() <= 0.005;
+        }, saleTable.getSelectionModel().selectedItemProperty()));
+        recordPaymentButton.setOnAction(event -> recordPayment());
 
     }
 
@@ -200,6 +211,13 @@ public class SaleView extends BorderPane {
                 new PropertyValueFactory<>("totalAmount")
         );
 
+        TableColumn<Sale, String> paymentStatusColumn = new TableColumn<>(LanguageManager.get("sale.payment.status"));
+        paymentStatusColumn.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(
+                LanguageManager.get("sale.payment.status." + cell.getValue().getPaymentStatus().toLowerCase(java.util.Locale.ROOT))));
+        TableColumn<Sale, String> balanceColumn = new TableColumn<>(LanguageManager.get("sale.balance.due"));
+        balanceColumn.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(
+                String.format(LanguageManager.get("sale.amount.format"), cell.getValue().getBalanceDue())));
+
         saleTable.getColumns().addAll(
 
                 idColumn,
@@ -208,7 +226,11 @@ public class SaleView extends BorderPane {
 
                 customerColumn,
 
-                totalColumn
+                totalColumn,
+
+                paymentStatusColumn,
+
+                balanceColumn
 
         );
 
@@ -220,6 +242,27 @@ public class SaleView extends BorderPane {
 
         setCenter(saleTable);
 
+    }
+
+    private void recordPayment() {
+        Sale selected = saleTable.getSelectionModel().getSelectedItem();
+        if (selected == null) return;
+        Sale sale = saleController.getSaleById(selected.getSaleId());
+        if (sale == null || sale.getBalanceDue() <= 0.005) {
+            loadSales();
+            return;
+        }
+        PaymentDialog.show(sale.getBalanceDue(), getScene() == null ? null : getScene().getWindow()).ifPresent(payment -> {
+            try {
+                saleController.recordPayment(sale.getSaleId(), payment.amount(), payment.method(),
+                        payment.tendered(), payment.reference());
+                notice(Alert.AlertType.INFORMATION, LanguageManager.get("success"), LanguageManager.get("sale.payment.saved"));
+                loadSales();
+            } catch (RuntimeException exception) {
+                notice(Alert.AlertType.ERROR, LanguageManager.get("error"),
+                        LanguageManager.message(exception.getMessage()));
+            }
+        });
     }
 
     private void viewSaleDetails() {

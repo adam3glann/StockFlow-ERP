@@ -2,6 +2,20 @@
 
 Launch StockFlow and log in.
 
+## Branch identity
+
+1. On the branch server, create/configure that branch's StockFlow PostgreSQL database.
+2. In **Settings → Branch Information**, enter a unique short branch code, display name, and location, then save.
+3. Point the branch workstations to the same database over its private LAN or VPN connection. The branch identity is stored in the database, so all clients show the same label in the header.
+
+Each branch remains a separate database. StockFlow does not yet consolidate or synchronize data between branches.
+
+## Backup and restore
+
+Install the PostgreSQL command-line tools on the branch server. Run `scripts/backup-database.ps1` for an on-demand custom-format backup, or schedule it daily with `scripts/register-daily-backup-task.ps1 -DailyAt 02:00`. Backups are ignored by Git and saved under `backups/` by default. Copy them to protected off-server storage.
+
+To restore, stop all clients and make a fresh backup first. Run `scripts/restore-database.ps1 <backup-file.dump>` and type the exact configured database name. Restore replaces objects; it does not merge data. Test restores periodically using a disposable database.
+
 ## Barcode Scanner (visible sidebar screen)
 
 1. Click **Barcode Scanner** in the left sidebar.

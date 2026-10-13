@@ -9,7 +9,7 @@ import com.adam.warehouse.session.SessionManager;
 
 import com.adam.warehouse.util.LanguageManager;
 import com.adam.warehouse.util.PermissionManager;
-import com.adam.warehouse.util.SettingsManager;
+import com.adam.warehouse.util.BranchIdentityManager;
 
 import javafx.geometry.Pos;
 
@@ -176,8 +176,8 @@ public class DashboardView extends BorderPane {
         branch.getStyleClass().add("branch-label");
         branch.textProperty().bind(Bindings.createStringBinding(
                 () -> String.format(LanguageManager.get("branch.header.title"),
-                        SettingsManager.branchDisplayProperty().get()),
-                SettingsManager.branchDisplayProperty()));
+                        BranchIdentityManager.displayProperty().get()),
+                BranchIdentityManager.displayProperty()));
 
         VBox branding = new VBox(2, title, branch);
 

@@ -5,6 +5,8 @@ import com.adam.warehouse.controller.SaleController;
 import com.adam.warehouse.model.Customer;
 import com.adam.warehouse.model.Sale;
 import com.adam.warehouse.model.SaleItem;
+import com.adam.warehouse.enums.PaymentMethod;
+import com.adam.warehouse.util.BranchIdentityManager;
 import com.adam.warehouse.session.SessionManager;
 import com.adam.warehouse.util.LanguageManager;
 import javafx.collections.FXCollections;
@@ -15,10 +17,12 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.geometry.Insets;
+import javafx.util.StringConverter;
 
 /** Records a sale, optionally linked to a customer for sales history and reporting. */
 public class SaleDialog extends BaseDialog {
@@ -28,7 +32,18 @@ public class SaleDialog extends BaseDialog {
     private final ComboBox<Customer> customerComboBox = new ComboBox<>();
     private final TableView<SaleItem> itemsTable = new TableView<>();
     private final TextArea notesArea = new TextArea();
-    private final Label totalLabel = new Label(String.format(LanguageManager.get("sale.total.format"), 0.0));
+    private final TextField discountField = new TextField("0.00");
+    private final TextField amountTenderedField = new TextField("0.00");
+    private final TextField paymentReferenceField = new TextField();
+    private final ComboBox<PaymentMethod> paymentMethodBox = new ComboBox<>();
+    private final Label subtotalLabel = new Label();
+    private final Label taxLabel = new Label();
+    private final Label totalLabel = new Label();
+    private final Label changeLabel = new Label();
+    private final Label balanceLabel = new Label();
+    private boolean paymentAmountEdited;
+    private boolean updatingPaymentField;
+    private double currentTotal;
 
     public SaleDialog() {
         super(LanguageManager.get("sale.dialog.new"));
@@ -57,6 +72,22 @@ public class SaleDialog extends BaseDialog {
         customerComboBox.setPrefWidth(320);
         notesArea.setPromptText(LanguageManager.get("sale.notes.hint"));
         notesArea.setPrefRowCount(3);
+        discountField.setText("0.00");
+        amountTenderedField.setText("0.00");
+        paymentReferenceField.setPromptText(LanguageManager.get("sale.payment.reference.prompt"));
+        paymentMethodBox.getItems().setAll(PaymentMethod.CASH, PaymentMethod.CARD,
+                PaymentMethod.BANK_TRANSFER, PaymentMethod.OTHER);
+        paymentMethodBox.setValue(PaymentMethod.CASH);
+        paymentMethodBox.setConverter(new StringConverter<>() {
+            @Override public String toString(PaymentMethod value) { return value == null ? "" : value.toString(); }
+            @Override public PaymentMethod fromString(String value) { return null; }
+        });
+        discountField.textProperty().addListener((observable, oldValue, newValue) -> updateTotal());
+        amountTenderedField.textProperty().addListener((observable, oldValue, newValue) -> {
+            if (!updatingPaymentField) paymentAmountEdited = true;
+            updatePaymentSummary();
+        });
+        paymentMethodBox.setOnAction(event -> updatePaymentSummary());
         Button addItem = new Button(LanguageManager.get("button.add.item"));
         Button removeItem = new Button(LanguageManager.get("sale.item.remove.selected"));
         Button save = new Button(LanguageManager.get("button.complete.sale"));
@@ -77,10 +108,27 @@ public class SaleDialog extends BaseDialog {
         grid.add(new Label(LanguageManager.get("sale.products")), 0, 1);
         grid.add(itemsTable, 1, 1);
         grid.add(new HBox(10, addItem, removeItem), 1, 2);
-        grid.add(totalLabel, 1, 3);
-        grid.add(new Label(LanguageManager.get("sale.notes")), 0, 4);
-        grid.add(notesArea, 1, 4);
-        grid.add(new HBox(10, save, cancel), 1, 5);
+        grid.add(new Label(LanguageManager.get("sale.subtotal")), 0, 3);
+        grid.add(subtotalLabel, 1, 3);
+        grid.add(new Label(LanguageManager.get("sale.discount")), 0, 4);
+        grid.add(discountField, 1, 4);
+        grid.add(new Label(LanguageManager.get("sale.tax")), 0, 5);
+        grid.add(taxLabel, 1, 5);
+        grid.add(new Label(LanguageManager.get("sale.total.label")), 0, 6);
+        grid.add(totalLabel, 1, 6);
+        grid.add(new Label(LanguageManager.get("sale.payment.method")), 0, 7);
+        grid.add(paymentMethodBox, 1, 7);
+        grid.add(new Label(LanguageManager.get("sale.amount.tendered")), 0, 8);
+        grid.add(amountTenderedField, 1, 8);
+        grid.add(new Label(LanguageManager.get("sale.change.due")), 0, 9);
+        grid.add(changeLabel, 1, 9);
+        grid.add(new Label(LanguageManager.get("sale.balance.due")), 0, 10);
+        grid.add(balanceLabel, 1, 10);
+        grid.add(new Label(LanguageManager.get("sale.payment.reference")), 0, 11);
+        grid.add(paymentReferenceField, 1, 11);
+        grid.add(new Label(LanguageManager.get("sale.notes")), 0, 12);
+        grid.add(notesArea, 1, 12);
+        grid.add(new HBox(10, save, cancel), 1, 13);
         root.setCenter(grid);
     }
 
@@ -112,8 +160,37 @@ public class SaleDialog extends BaseDialog {
     }
 
     private void updateTotal() {
-        double total = itemsTable.getItems().stream().mapToDouble(SaleItem::getSubtotal).sum();
-        totalLabel.setText(String.format(LanguageManager.get("sale.total.format"), total));
+        Sale preview = new Sale();
+        preview.setItems(itemsTable.getItems());
+        preview.setDiscountAmount(parseMoney(discountField.getText(), 0));
+        preview.setTaxRate(BranchIdentityManager.get().taxRate());
+        preview.calculateTotalAmount();
+        currentTotal = preview.getTotalAmount();
+        subtotalLabel.setText(String.format(LanguageManager.get("sale.amount.format"), preview.getSubtotalAmount()));
+        taxLabel.setText(String.format(LanguageManager.get("sale.tax.format"), preview.getTaxRate(), preview.getTaxAmount()));
+        totalLabel.setText(String.format(LanguageManager.get("sale.total.format"), preview.getTotalAmount()));
+        if (!paymentAmountEdited) {
+            updatingPaymentField = true;
+            amountTenderedField.setText(String.format(java.util.Locale.ROOT, "%.2f", preview.getTotalAmount()));
+            updatingPaymentField = false;
+        }
+        updatePaymentSummary();
+    }
+
+    private void updatePaymentSummary() {
+        double total = currentTotal;
+        double tendered = parseMoney(amountTenderedField.getText(), 0);
+        boolean cash = paymentMethodBox.getValue() == PaymentMethod.CASH;
+        double applied = Math.min(total, tendered);
+        double change = cash ? Math.max(0, tendered - total) : 0;
+        changeLabel.setText(String.format(LanguageManager.get("sale.amount.format"), change));
+        balanceLabel.setText(String.format(LanguageManager.get("sale.amount.format"), Math.max(0, total - applied)));
+    }
+
+    private double parseMoney(String text, double fallback) {
+        if (text == null || text.isBlank()) return fallback;
+        try { return Double.parseDouble(text.trim().replace(',', '.')); }
+        catch (NumberFormatException ignored) { return fallback; }
     }
 
     private void saveSale() {
@@ -131,6 +208,29 @@ public class SaleDialog extends BaseDialog {
             sale.setEmployeeId(SessionManager.requireCurrentEmployee().getEmployeeId());
             sale.setNotes(notesArea.getText());
             sale.setItems(FXCollections.observableArrayList(itemsTable.getItems()));
+            double discount = Double.parseDouble(discountField.getText().trim().replace(',', '.'));
+            if (!Double.isFinite(discount) || discount < 0 || discount > sale.getSubtotalAmount()) {
+                show(Alert.AlertType.WARNING, LanguageManager.get("sale.discount.invalid"));
+                return;
+            }
+            sale.setDiscountAmount(discount);
+            sale.setTaxRate(BranchIdentityManager.get().taxRate());
+            sale.calculateTotalAmount();
+            double tendered = Double.parseDouble(amountTenderedField.getText().trim().replace(',', '.'));
+            if (!Double.isFinite(tendered) || tendered < 0) {
+                show(Alert.AlertType.WARNING, LanguageManager.get("sale.payment.invalid"));
+                return;
+            }
+            double applied = Math.min(sale.getTotalAmount(), tendered);
+            if (paymentMethodBox.getValue() != PaymentMethod.CASH && tendered > sale.getTotalAmount() + 0.005) {
+                show(Alert.AlertType.WARNING, LanguageManager.get("sale.payment.no.change.for.non.cash"));
+                return;
+            }
+            sale.setPaymentMethod(paymentMethodBox.getValue());
+            sale.setAmountTendered(tendered);
+            sale.setAmountPaid(applied);
+            sale.setChangeDue(paymentMethodBox.getValue() == PaymentMethod.CASH ? Math.max(0, tendered - sale.getTotalAmount()) : 0);
+            sale.setPaymentReference(paymentReferenceField.getText());
             saleController.saveSale(sale);
             show(Alert.AlertType.INFORMATION, LanguageManager.get("sale.completed"));
             close();
