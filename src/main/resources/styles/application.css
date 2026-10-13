@@ -3,6 +3,24 @@
     -fx-background-color: #F8FAFC;
 }
 
+.settings-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 12;
+    -fx-padding: 22;
+}
+.settings-section-title { -fx-font-size: 16px; -fx-font-weight: bold; }
+.settings-danger-card { -fx-border-color: #FECACA; }
+.danger-button {
+    -fx-background-color: #B91C1C;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 9 16;
+    -fx-background-radius: 6;
+}
+.danger-button:hover { -fx-background-color: #991B1B; }
+
 /* ===== Top Bar ===== */
 
 .top-bar {

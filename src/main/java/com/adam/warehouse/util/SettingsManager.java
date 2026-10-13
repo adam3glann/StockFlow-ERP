@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Properties;
 
@@ -63,30 +64,7 @@ public final class SettingsManager {
     }
 
     public static void saveLanguage(Locale locale) {
-
-        try {
-
-            properties.setProperty(
-                    LANGUAGE_KEY,
-                    locale.getLanguage()
-            );
-
-            try (OutputStream output =
-                         Files.newOutputStream(SETTINGS_FILE)) {
-
-                properties.store(
-                        output,
-                        "StockFlow ERP Settings"
-                );
-
-            }
-
-        } catch (IOException exception) {
-
-            System.err.println("Unable to save local language settings.");
-
-        }
-
+        save(locale, darkMode);
     }
 
     public static boolean isDarkMode() {
@@ -94,32 +72,35 @@ public final class SettingsManager {
     }
 
     public static void saveDarkMode(boolean enabled) {
+        save(LanguageManager.getLocale(), enabled);
+    }
 
-        darkMode = enabled;
-
+    /** Saves both preferences together so the UI never reports a partial save. */
+    public static synchronized boolean save(Locale locale, boolean enabled) {
+        if (locale == null) return false;
+        Properties updated = new Properties();
+        updated.putAll(properties);
+        updated.setProperty(LANGUAGE_KEY, locale.getLanguage());
+        updated.setProperty(DARK_MODE_KEY, Boolean.toString(enabled));
+        Path temporary = SETTINGS_FILE.resolveSibling(SETTINGS_FILE.getFileName() + ".tmp");
         try {
-
-            properties.setProperty(
-                    DARK_MODE_KEY,
-                    Boolean.toString(enabled)
-            );
-
-            try (OutputStream output =
-                         Files.newOutputStream(SETTINGS_FILE)) {
-
-                properties.store(
-                        output,
-                        "StockFlow ERP Settings"
-                );
-
+            try (OutputStream output = Files.newOutputStream(temporary)) {
+                updated.store(output, "StockFlow ERP Settings");
             }
-
+            try {
+                Files.move(temporary, SETTINGS_FILE, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException atomicMoveUnavailable) {
+                Files.move(temporary, SETTINGS_FILE, StandardCopyOption.REPLACE_EXISTING);
+            }
+            properties.clear();
+            properties.putAll(updated);
+            darkMode = enabled;
+            return true;
         } catch (IOException exception) {
-
-            System.err.println("Unable to save local appearance settings.");
-
+            try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
+            System.err.println("Unable to save local application settings.");
+            return false;
         }
-
     }
 
 }
