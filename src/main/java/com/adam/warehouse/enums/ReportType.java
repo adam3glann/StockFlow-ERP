@@ -1,0 +1,24 @@
+package com.adam.warehouse.enums;
+
+public enum ReportType {
+
+    DAILY_SALES,
+    MONTHLY_SALES,
+    YEARLY_SALES,
+
+    SALES_BY_EMPLOYEE,
+
+    TOP_SELLING_PRODUCTS,
+    LEAST_SELLING_PRODUCTS,
+
+    LOW_STOCK,
+
+    INVENTORY_VALUE,
+
+    CUSTOMER_PURCHASES,
+
+    SUPPLIER_PURCHASES,
+
+    PROFIT_REPORT
+
+}

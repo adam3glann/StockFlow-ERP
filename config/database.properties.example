@@ -1,0 +1,7 @@
+# Copy this file to config/database.properties, then set local credentials.
+# Use a dedicated least-privilege PostgreSQL role for StockFlow, never a superuser.
+# Deployment alternatives: STOCKFLOW_DB_URL / STOCKFLOW_DB_USERNAME / STOCKFLOW_DB_PASSWORD,
+# or DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD.
+url=jdbc:postgresql://localhost:5432/stockflow_erp
+username=stockflow_app
+password=replace-with-your-password
