@@ -66,6 +66,7 @@ public class SaleDAO {
                    COALESCE((SELECT SUM(sp.amount) FROM sale_payments sp WHERE sp.sale_id = s.sale_id), 0) AS amount_paid
             FROM sales s
             LEFT JOIN customers c ON c.customer_id = s.customer_id
+            WHERE (? IS NULL OR s.employee_id = ?)
             ORDER BY sale_date DESC,
                      sale_id DESC
             """;
@@ -76,6 +77,7 @@ public class SaleDAO {
             FROM sales s
             LEFT JOIN customers c ON c.customer_id = s.customer_id
             WHERE s.sale_id = ?
+              AND (? IS NULL OR s.employee_id = ?)
             """;
 
     private static final String SEARCH = """
@@ -83,8 +85,9 @@ public class SaleDAO {
                    COALESCE((SELECT SUM(sp.amount) FROM sale_payments sp WHERE sp.sale_id = s.sale_id), 0) AS amount_paid
             FROM sales s
             LEFT JOIN customers c ON c.customer_id = s.customer_id
-            WHERE CAST(s.sale_id AS TEXT) LIKE ?
-               OR LOWER(COALESCE(c.full_name, '')) LIKE LOWER(?)
+            WHERE (CAST(s.sale_id AS TEXT) LIKE ?
+               OR LOWER(COALESCE(c.full_name, '')) LIKE LOWER(?))
+              AND (? IS NULL OR s.employee_id = ?)
             ORDER BY s.sale_date DESC
             """;
 
@@ -126,6 +129,7 @@ public class SaleDAO {
                     decreaseStock(connection, sale, saleId, item);
                 }
                 connection.commit();
+                sale.setSaleId(saleId);
             } catch (Exception exception) {
                 rollback(connection, exception);
                 if (exception instanceof RuntimeException runtimeException) throw runtimeException;
@@ -150,27 +154,35 @@ public class SaleDAO {
         }
     }
 
-    public void recordPayment(int saleId, int employeeId, PaymentMethod method, double amount,
+    public void recordPayment(int saleId, int employeeId, Integer employeeFilter, PaymentMethod method, double amount,
                               double tendered, double changeDue, String reference) {
         try (Connection connection = DatabaseConnection.getConnection()) {
             connection.setAutoCommit(false);
             try {
                 double total;
                 double paid;
+                Integer customerId;
                 try (PreparedStatement lock = connection.prepareStatement("""
-                        SELECT s.total_amount,
+                        SELECT s.total_amount, s.customer_id,
                                COALESCE((SELECT SUM(p.amount) FROM sale_payments p WHERE p.sale_id = s.sale_id), 0) AS amount_paid
-                        FROM sales s WHERE s.sale_id = ? FOR UPDATE
+                        FROM sales s WHERE s.sale_id = ? AND (? IS NULL OR s.employee_id = ?) FOR UPDATE
                         """)) {
                     lock.setInt(1, saleId);
+                    setEmployeeFilter(lock, 2, employeeFilter);
+                    setEmployeeFilter(lock, 3, employeeFilter);
                     try (ResultSet rs = lock.executeQuery()) {
                         if (!rs.next()) throw new IllegalArgumentException("Sale not found.");
                         total = rs.getDouble("total_amount");
                         paid = rs.getDouble("amount_paid");
+                        Object customerValue = rs.getObject("customer_id");
+                        customerId = customerValue == null ? null : ((Number) customerValue).intValue();
                     }
                 }
                 double balance = Math.max(0, total - paid);
                 if (amount <= 0 || amount > balance + 0.005) throw new IllegalArgumentException("Payment amount exceeds the outstanding sale balance.");
+                if (amount + 0.005 < balance && customerId == null) {
+                    throw new IllegalArgumentException("sale.partial.payment.customer.required");
+                }
                 if (tendered + 0.005 < amount || changeDue < 0 || changeDue > 0.005 && method != PaymentMethod.CASH) {
                     throw new IllegalArgumentException("Payment tender is invalid.");
                 }
@@ -309,19 +321,16 @@ public class SaleDAO {
         }
 
     }
-    public List<Sale> getAllSales() {
+    public List<Sale> getAllSales(Integer employeeFilter) {
 
         List<Sale> sales = new ArrayList<>();
 
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(GET_ALL);
-             ResultSet rs = statement.executeQuery()) {
-
-            while (rs.next()) {
-
-                sales.add(mapSale(rs));
-
+             PreparedStatement statement = connection.prepareStatement(GET_ALL)) {
+            setEmployeeFilter(statement, 1, employeeFilter);
+            setEmployeeFilter(statement, 2, employeeFilter);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) sales.add(mapSale(rs));
             }
 
         } catch (SQLException e) {
@@ -335,13 +344,15 @@ public class SaleDAO {
 
     }
 
-    public Sale getSaleById(int saleId) {
+    public Sale getSaleById(int saleId, Integer employeeFilter) {
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement =
                      connection.prepareStatement(GET_BY_ID)) {
 
             statement.setInt(1, saleId);
+            setEmployeeFilter(statement, 2, employeeFilter);
+            setEmployeeFilter(statement, 3, employeeFilter);
 
             try (ResultSet rs = statement.executeQuery()) {
 
@@ -373,7 +384,7 @@ public class SaleDAO {
 
     }
 
-    public List<Sale> searchSales(String keyword) {
+    public List<Sale> searchSales(String keyword, Integer employeeFilter) {
 
         List<Sale> sales = new ArrayList<>();
 
@@ -385,6 +396,8 @@ public class SaleDAO {
 
             statement.setString(1, search);
             statement.setString(2, search);
+            setEmployeeFilter(statement, 3, employeeFilter);
+            setEmployeeFilter(statement, 4, employeeFilter);
 
             try (ResultSet rs = statement.executeQuery()) {
 
@@ -405,6 +418,11 @@ public class SaleDAO {
 
         return sales;
 
+    }
+
+    private void setEmployeeFilter(PreparedStatement statement, int index, Integer employeeId) throws SQLException {
+        if (employeeId == null) statement.setNull(index, Types.INTEGER);
+        else statement.setInt(index, employeeId);
     }
 
     private List<SaleItem> getSaleItems(

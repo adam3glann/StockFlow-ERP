@@ -70,8 +70,11 @@ public final class PermissionManager {
 
     public static boolean canManageCustomers() {
         return role() == UserRole.ADMIN
-                || role() == UserRole.MANAGER
-                || role() == UserRole.CASHIER;
+                || role() == UserRole.MANAGER;
+    }
+
+    public static boolean canViewCustomers() {
+        return canManageCustomers() || role() == UserRole.CASHIER;
     }
 
     public static boolean canManageReturns() {

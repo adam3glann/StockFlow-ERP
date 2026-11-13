@@ -7,6 +7,8 @@ import com.adam.warehouse.model.ReturnableItem;
 import com.adam.warehouse.session.SessionManager;
 import com.adam.warehouse.util.PermissionManager;
 import com.adam.warehouse.util.MoneyValidation;
+import com.adam.warehouse.model.Sale;
+import com.adam.warehouse.enums.UserRole;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +30,7 @@ public class ReturnService {
         }
 
         PermissionManager.require(PermissionManager.canManageReturns(), "process returns");
+        requireSaleAccess(returnRecord.getSaleId());
 
         // Never trust an employee ID submitted by a UI or external caller.
         returnRecord.setEmployeeId(SessionManager.requireCurrentEmployee().getEmployeeId());
@@ -53,17 +56,22 @@ public class ReturnService {
 
     public List<Return> getAllReturns() {
         PermissionManager.require(PermissionManager.canManageReturns(), "view returns");
-        return returnDAO.getAllReturns();
+        var employee = SessionManager.requireCurrentEmployee();
+        Integer saleOwnerFilter = employee.getRole() == UserRole.CASHIER ? employee.getEmployeeId() : null;
+        return returnDAO.getAllReturns(saleOwnerFilter);
     }
 
     public List<Return> getReturnsForSale(int saleId) {
         PermissionManager.require(PermissionManager.canManageReturns(), "view returns");
+        requireSaleAccess(saleId);
         return returnDAO.getReturnsForSale(saleId);
     }
 
     public Return getReturnById(int returnId) {
         PermissionManager.require(PermissionManager.canManageReturns(), "view returns");
-        return returnDAO.getReturnById(returnId);
+        Return record = returnDAO.getReturnById(returnId);
+        if (record != null) requireSaleAccess(record.getSaleId());
+        return record;
     }
 
     public List<ReturnableItem> getReturnableItems(int saleId) {
@@ -71,7 +79,14 @@ public class ReturnService {
         if (saleId <= 0) {
             throw new IllegalArgumentException("Invalid sale.");
         }
+        requireSaleAccess(saleId);
         return returnDAO.getReturnableItems(saleId);
+    }
+
+    private Sale requireSaleAccess(int saleId) {
+        Sale sale = new SaleService().getSaleById(saleId);
+        if (sale == null) throw new IllegalArgumentException("Please select a sale to return items from.");
+        return sale;
     }
 
     private void validateReturn(Return returnRecord) {

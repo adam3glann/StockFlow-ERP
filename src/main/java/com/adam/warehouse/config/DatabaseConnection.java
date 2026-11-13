@@ -8,6 +8,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
+import com.adam.warehouse.util.AppPaths;
 
 public final class DatabaseConnection {
 
@@ -55,10 +56,7 @@ public final class DatabaseConnection {
     }
 
     public static Path userDataDirectory() {
-        String appData = System.getenv("APPDATA");
-        if (appData != null && !appData.isBlank()) return Path.of(appData, "StockFlow");
-        String userHome = System.getProperty("user.home", ".");
-        return Path.of(userHome, ".stockflow");
+        return AppPaths.userDataDirectory();
     }
 
     private static String requiredSetting(String systemProperty, String propertyName,

@@ -81,6 +81,7 @@ public class ReturnDAO {
             JOIN employees e ON e.employee_id = r.employee_id
             JOIN sales s ON s.sale_id = r.sale_id
             LEFT JOIN customers c ON c.customer_id = s.customer_id
+            WHERE (? IS NULL OR s.employee_id = ?)
             ORDER BY r.return_date DESC, r.return_id DESC
             """;
 
@@ -278,8 +279,24 @@ public class ReturnDAO {
         return items;
     }
 
-    public List<Return> getAllReturns() {
-        return queryReturns(GET_ALL, -1);
+    public List<Return> getAllReturns(Integer saleEmployeeFilter) {
+        List<Return> returns = new ArrayList<>();
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(GET_ALL)) {
+            if (saleEmployeeFilter == null) {
+                statement.setNull(1, Types.INTEGER);
+                statement.setNull(2, Types.INTEGER);
+            } else {
+                statement.setInt(1, saleEmployeeFilter);
+                statement.setInt(2, saleEmployeeFilter);
+            }
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) returns.add(mapReturn(rs));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to load returns.", e);
+        }
+        return returns;
     }
 
     public List<Return> getReturnsForSale(int saleId) {

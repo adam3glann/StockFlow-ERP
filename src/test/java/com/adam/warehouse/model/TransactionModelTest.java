@@ -39,6 +39,21 @@ class TransactionModelTest {
     }
 
     @Test
+    void saleAppliesDiscountBeforeTaxAndTracksOutstandingPayment() {
+        Sale sale = new Sale();
+        sale.addItem(new SaleItem(8, "Taxable item", 2, 25.00, 12.00));
+        sale.setDiscountAmount(10.00);
+        sale.setTaxRate(5.00);
+
+        assertEquals(50.00, sale.getSubtotalAmount(), 0.001);
+        assertEquals(2.00, sale.getTaxAmount(), 0.001);
+        assertEquals(42.00, sale.getTotalAmount(), 0.001);
+        sale.setAmountPaid(20.00);
+        assertEquals(22.00, sale.getBalanceDue(), 0.001);
+        assertEquals("PARTIAL", sale.getPaymentStatus());
+    }
+
+    @Test
     void emptyReportHasSafeAveragesAndRefundAdjustedGrossProfit() {
         ReportSummary summary = new ReportSummary();
         assertEquals(0, summary.getAverageSaleValue(), 0.001);

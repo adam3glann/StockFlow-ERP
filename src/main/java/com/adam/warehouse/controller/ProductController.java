@@ -69,6 +69,10 @@ public class ProductController {
         return productService.getProductByBarcode(barcode);
     }
 
+    public Product getProductById(int productId) {
+        return productService.getProductById(productId);
+    }
+
     // ==========================
     // Barcode Helper
     // ==========================

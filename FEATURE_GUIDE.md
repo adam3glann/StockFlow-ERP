@@ -2,6 +2,12 @@
 
 Launch StockFlow and log in.
 
+## Cashier point of sale
+
+Cashier accounts open directly to **Cashier Register**. Scan an item barcode and press Enter, or search by product name/barcode and add the selected result. Adjust quantities, remove a line, or clear the cart before checkout. The screen calculates the branch tax (default 0%), discount, total, change, and remaining balance. Select a customer before accepting a partial payment; walk-in sales must be paid in full. A saved sale reduces stock and records its inventory movement and payment in the same database transaction. Export the last sale as a PDF receipt after checkout.
+
+Cashiers can view and collect payments only for their own sales. They can view customer records for checkout, but only admins and managers can create, edit, or deactivate customers. Cashiers use **Sales History** for their own completed sales and **Returns** for sales they are permitted to access.
+
 ## Branch identity
 
 1. On the branch server, create/configure that branch's StockFlow PostgreSQL database.

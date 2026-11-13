@@ -49,6 +49,7 @@ public class SaleDialog extends BaseDialog {
         super(LanguageManager.get("sale.dialog.new"));
         createTable();
         createForm();
+        BranchIdentityManager.identityProperty().addListener((observable, oldValue, newValue) -> updateTotal());
     }
 
     private void createTable() {
@@ -247,6 +248,9 @@ public class SaleDialog extends BaseDialog {
     }
 
     private String safeMessage(RuntimeException exception) {
+        if ("sale.partial.payment.customer.required".equals(exception.getMessage())) {
+            return LanguageManager.get("sale.partial.payment.customer.required");
+        }
         Throwable cause = exception.getCause();
         return cause == null || cause.getMessage() == null ? LanguageManager.get("try.again") : LanguageManager.message(cause.getMessage());
     }

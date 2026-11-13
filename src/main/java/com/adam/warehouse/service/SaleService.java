@@ -4,9 +4,11 @@ import com.adam.warehouse.dao.SaleDAO;
 import com.adam.warehouse.model.Sale;
 import com.adam.warehouse.model.SaleItem;
 import com.adam.warehouse.enums.PaymentMethod;
+import com.adam.warehouse.enums.UserRole;
 import com.adam.warehouse.session.SessionManager;
 import com.adam.warehouse.util.PermissionManager;
 import com.adam.warehouse.util.MoneyValidation;
+import com.adam.warehouse.util.BranchIdentityManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +32,7 @@ public class SaleService {
         PermissionManager.require(PermissionManager.canMakeSales(), "record sales");
         // Never trust an employee ID submitted by a UI or external caller.
         sale.setEmployeeId(SessionManager.requireCurrentEmployee().getEmployeeId());
+        sale.setTaxRate(BranchIdentityManager.get().taxRate());
         sale.calculateTotalAmount();
         validateSale(sale);
 
@@ -83,7 +86,7 @@ public class SaleService {
             throw new IllegalArgumentException("Payment details are invalid.");
         }
         int employeeId = SessionManager.requireCurrentEmployee().getEmployeeId();
-        saleDAO.recordPayment(saleId, employeeId, method, amount, tendered,
+        saleDAO.recordPayment(saleId, employeeId, visibleEmployeeFilter(), method, amount, tendered,
                 method == PaymentMethod.CASH ? Math.max(0, tendered - amount) : 0,
                 reference == null || reference.isBlank() ? null : reference.trim());
         activityLogService.logCurrentUser("SALE", "PAYMENT",
@@ -92,12 +95,12 @@ public class SaleService {
 
     public List<Sale> getAllSales() {
         PermissionManager.require(PermissionManager.canMakeSales(), "view sales");
-        return saleDAO.getAllSales();
+        return saleDAO.getAllSales(visibleEmployeeFilter());
     }
 
     public Sale getSaleById(int saleId) {
         PermissionManager.require(PermissionManager.canMakeSales(), "view sales");
-        return saleDAO.getSaleById(saleId);
+        return saleDAO.getSaleById(saleId, visibleEmployeeFilter());
     }
 
     public List<Sale> searchSales(String keyword) {
@@ -107,7 +110,7 @@ public class SaleService {
             keyword = "";
         }
 
-        return saleDAO.searchSales(keyword.trim());
+        return saleDAO.searchSales(keyword.trim(), visibleEmployeeFilter());
 
     }
 
@@ -127,6 +130,11 @@ public class SaleService {
 
         return getAllSales().size();
 
+    }
+
+    private Integer visibleEmployeeFilter() {
+        var employee = SessionManager.requireCurrentEmployee();
+        return employee.getRole() == UserRole.CASHIER ? employee.getEmployeeId() : null;
     }
 
     private void validateSale(Sale sale) {
@@ -223,6 +231,9 @@ public class SaleService {
                 || (sale.getPaymentMethod() != PaymentMethod.CASH && sale.getChangeDue() > 0.005)
                 || (sale.getPaymentReference() != null && sale.getPaymentReference().length() > 120)) {
             throw new IllegalArgumentException("Sale payment details are invalid.");
+        }
+        if (sale.getBalanceDue() > 0.005 && (sale.getCustomerId() == null || sale.getCustomerId() <= 0)) {
+            throw new IllegalArgumentException("sale.partial.payment.customer.required");
         }
 
     }

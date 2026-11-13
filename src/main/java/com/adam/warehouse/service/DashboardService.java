@@ -32,7 +32,7 @@ public class DashboardService {
     }
 
     public int getTotalCustomers() {
-        PermissionManager.require(PermissionManager.canManageCustomers(), "view customer metrics");
+        PermissionManager.require(PermissionManager.canViewCustomers(), "view customer metrics");
         return dashboardDAO.getTotalCustomers();
     }
 

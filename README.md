@@ -48,4 +48,4 @@ Open **Settings** to select English or Arabic and toggle dark mode. Arabic uses 
 
 ## Included workflows
 
-StockFlow includes barcode scanning and product labels, low-stock/reorder reporting, opening stock and audited stock adjustments, movement history, software stock audits, physical count sessions with variance investigation, sales and purchase entry, customer and supplier returns, role-based access, activity history, dashboard metrics, and CSV/PDF invoice and report exports. See [FEATURE_GUIDE.md](FEATURE_GUIDE.md) for operator steps and known audit limitations.
+StockFlow includes a cashier point-of-sale workspace, barcode scanning and product labels, low-stock/reorder reporting, opening stock and audited stock adjustments, movement history, software stock audits, physical count sessions with variance investigation, sales and purchase entry, customer and supplier returns, role-based access, activity history, dashboard metrics, and CSV/PDF invoice and report exports. See [FEATURE_GUIDE.md](FEATURE_GUIDE.md) for operator steps and known audit limitations.

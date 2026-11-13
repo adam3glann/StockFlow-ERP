@@ -8,11 +8,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Properties;
-import com.adam.warehouse.config.DatabaseConnection;
 
 public final class SettingsManager {
 
-    private static final Path SETTINGS_FILE = DatabaseConnection.userDataDirectory().resolve("settings.properties");
+    private static final Path SETTINGS_FILE = AppPaths.userDataDirectory().resolve("settings.properties");
     private static final Path LEGACY_SETTINGS_FILE = Path.of("settings.properties");
 
     private static final String LANGUAGE_KEY =

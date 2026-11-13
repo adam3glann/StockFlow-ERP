@@ -3,6 +3,7 @@ package com.adam.warehouse.view;
 
 
 import com.adam.warehouse.model.Employee;
+import com.adam.warehouse.enums.UserRole;
 import com.adam.warehouse.controller.LoginController;
 
 import com.adam.warehouse.session.SessionManager;
@@ -241,7 +242,7 @@ public class DashboardView extends BorderPane {
 
                 createMenuButton(
 
-                        LanguageManager.get("menu.dashboard")
+                        LanguageManager.get(isCashier() ? "cashier.screen.title" : "menu.dashboard")
 
                 );
 
@@ -297,13 +298,8 @@ public class DashboardView extends BorderPane {
 
 
 
-        Button sales =
-
-                createMenuButton(
-
-                        LanguageManager.get("menu.sales")
-
-                );
+        Button sales = createMenuButton(LanguageManager.get(isCashier()
+                ? "cashier.sales.history" : "menu.sales"));
 
 
 
@@ -337,6 +333,7 @@ public class DashboardView extends BorderPane {
 
         Button profile = createMenuButton(LanguageManager.get("menu.profile"));
         Button inventory = createMenuButton(LanguageManager.get("menu.inventory"));
+        Button barcodeScanner = createMenuButton(LanguageManager.get("menu.barcode.scanner"));
         Button activity = createMenuButton(LanguageManager.get("menu.activity"));
         Button returns = createMenuButton(LanguageManager.get("menu.returns"));
         Button purchaseReturns = createMenuButton(LanguageManager.get("menu.purchase.returns"));
@@ -423,6 +420,7 @@ public class DashboardView extends BorderPane {
 
         profile.setOnAction(event -> showProfile());
         inventory.setOnAction(event -> showInventory());
+        barcodeScanner.setOnAction(event -> showBarcodeScanner());
         activity.setOnAction(event -> showActivity());
         returns.setOnAction(event -> showReturns());
         purchaseReturns.setOnAction(event -> showPurchaseReturns());
@@ -432,6 +430,8 @@ public class DashboardView extends BorderPane {
         products.setManaged(PermissionManager.canManageProducts());
         inventory.setVisible(PermissionManager.canManageProducts());
         inventory.setManaged(PermissionManager.canManageProducts());
+        barcodeScanner.setVisible(PermissionManager.canManageProducts() || PermissionManager.canMakeSales());
+        barcodeScanner.setManaged(PermissionManager.canManageProducts() || PermissionManager.canMakeSales());
         categories.setVisible(PermissionManager.canManageCategories());
         categories.setManaged(PermissionManager.canManageCategories());
         suppliers.setVisible(PermissionManager.canManageSuppliers());
@@ -464,6 +464,8 @@ public class DashboardView extends BorderPane {
                 dashboard,
 
                 inventory,
+
+                barcodeScanner,
 
                 products,
 
@@ -530,17 +532,17 @@ public class DashboardView extends BorderPane {
 
 
     private void showDashboard() {
+        if (isCashier()) {
+            contentPane.setCenter(new CashierView());
+        } else {
+            contentPane.setCenter(new DashboardHomeView());
+        }
 
+    }
 
-
-        contentPane.setCenter(
-
-                new DashboardHomeView()
-
-        );
-
-
-
+    private boolean isCashier() {
+        Employee employee = SessionManager.getCurrentEmployee();
+        return employee != null && employee.getRole() == UserRole.CASHIER;
     }
 
 
@@ -707,6 +709,10 @@ public class DashboardView extends BorderPane {
 
     private void showInventory() {
         contentPane.setCenter(new InventoryView());
+    }
+
+    private void showBarcodeScanner() {
+        contentPane.setCenter(new BarcodeScannerView());
     }
 
     private void showActivity() {

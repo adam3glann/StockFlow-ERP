@@ -37,6 +37,4 @@ public class SaleController {
         );
     }
 
-    public void returnSaleItem(int saleId, int saleItemId, int returned, String text) {
-    }
 }

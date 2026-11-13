@@ -46,6 +46,12 @@ public class SaleView extends BorderPane {
         newSaleButton = new Button(
                 LanguageManager.get("button.new.sale")
         );
+        if (com.adam.warehouse.session.SessionManager.getCurrentEmployee() != null
+                && com.adam.warehouse.session.SessionManager.getCurrentEmployee().getRole()
+                == com.adam.warehouse.enums.UserRole.CASHIER) {
+            newSaleButton.setVisible(false);
+            newSaleButton.setManaged(false);
+        }
 
         viewButton = new Button(
                 LanguageManager.get("button.view")

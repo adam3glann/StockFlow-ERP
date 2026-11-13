@@ -36,6 +36,10 @@ public final class InvoiceExportUtil {
     public static void purchase(Path path, Purchase purchase) throws IOException {
         List<List<String>> rows = header(String.format(LanguageManager.get("invoice.purchase.title"), purchase.getPurchaseId()), purchase.getPurchaseDate(),
                 LanguageManager.get("invoice.supplier"), safe(purchase.getSupplierName()));
+        BranchIdentity branch = BranchIdentityManager.get();
+        rows.add(List.of(LanguageManager.get("branch.code"), branch.code()));
+        rows.add(List.of(LanguageManager.get("branch.name"), branch.name()));
+        if (branch.location() != null && !branch.location().isBlank()) rows.add(List.of(LanguageManager.get("branch.location"), branch.location()));
         rows.add(List.of(LanguageManager.get("invoice.product"), LanguageManager.get("invoice.quantity"),
                 LanguageManager.get("invoice.unit.price"), LanguageManager.get("invoice.subtotal")));
         for (PurchaseItem item : purchase.getItems()) rows.add(List.of(item.getProductName(), String.valueOf(item.getQuantity()), money(item.getPurchasePrice()), money(item.getSubtotal())));

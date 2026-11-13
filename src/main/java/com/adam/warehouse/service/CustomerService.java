@@ -49,14 +49,14 @@ public class CustomerService {
     }
 
     public List<Customer> getAllCustomers() {
-        PermissionManager.require(PermissionManager.canManageCustomers(), "view customers");
+        PermissionManager.require(PermissionManager.canViewCustomers(), "view customers");
 
         return customerDAO.getAllCustomers();
 
     }
 
     public Customer getCustomerById(int customerId) {
-        PermissionManager.require(PermissionManager.canManageCustomers(), "view customers");
+        PermissionManager.require(PermissionManager.canViewCustomers(), "view customers");
 
         if (customerId <= 0) {
             throw new IllegalArgumentException("Invalid customer ID.");
@@ -67,7 +67,7 @@ public class CustomerService {
     }
 
     public List<Customer> searchCustomers(String keyword) {
-        PermissionManager.require(PermissionManager.canManageCustomers(), "view customers");
+        PermissionManager.require(PermissionManager.canViewCustomers(), "view customers");
 
         if (keyword == null) {
             keyword = "";
