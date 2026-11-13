@@ -3,6 +3,8 @@ package com.adam.warehouse.config;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.sql.Connection;
@@ -12,16 +14,23 @@ import java.sql.Statement;
 /** Applies idempotent schema upgrades and a non-overwriting administrator seed at startup. */
 public final class DatabaseInitializer {
     private static final Path SCHEMA_PATH = Path.of("config", "schema.sql");
+    private static final String SCHEMA_RESOURCE = "/config/schema.sql";
 
     private DatabaseInitializer() {
     }
 
     public static void initialize() throws SQLException, IOException {
-        if (Files.notExists(SCHEMA_PATH)) {
-            throw new IOException("Database schema was not found at " + SCHEMA_PATH.toAbsolutePath());
+        String schema;
+        if (Files.isRegularFile(SCHEMA_PATH)) {
+            schema = Files.readString(SCHEMA_PATH);
+        } else {
+            try (InputStream input = DatabaseInitializer.class.getResourceAsStream(SCHEMA_RESOURCE)) {
+                if (input == null) {
+                    throw new IOException("Bundled database schema was not found.");
+                }
+                schema = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            }
         }
-
-        String schema = Files.readString(SCHEMA_PATH);
         try (Connection connection = DatabaseConnection.getConnection();
              Statement statement = connection.createStatement()) {
             for (String command : splitStatements(schema)) {

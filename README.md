@@ -6,7 +6,7 @@ StockFlow is a JavaFX and PostgreSQL warehouse-management ERP with role-aware op
 
 1. Create a PostgreSQL database for StockFlow.
 2. Create a dedicated PostgreSQL role with only the permissions StockFlow needs to create/update its schema and data. Do not use the PostgreSQL superuser.
-3. Copy `config/database.properties.example` to `config/database.properties` and enter your local connection settings. The local file is excluded by Git. For deployment, use `STOCKFLOW_DB_URL`, `STOCKFLOW_DB_USERNAME`, and `STOCKFLOW_DB_PASSWORD`, or `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`.
+3. For development, copy `config/database.properties.example` to `config/database.properties`. For installed Windows clients, use `scripts/configure-branch-client.ps1`; it saves connection settings to the current Windows user's `%APPDATA%\StockFlow` folder. Environment variables `STOCKFLOW_DB_URL`, `STOCKFLOW_DB_USERNAME`, and `STOCKFLOW_DB_PASSWORD` can also be used.
 4. Start the application with `mvn javafx:run`. The schema is initialized on startup. If no active administrator exists, StockFlow prompts you to create one with a password you choose.
 
 ## Branch deployment
@@ -37,6 +37,10 @@ The JUnit tests cover transaction models, return and profit calculations, permis
 ## Before publishing
 
 Run `scripts/scan-secrets.ps1` from PowerShell before committing or pushing. It checks tracked and untracked repository files for common secret patterns and sensitive local files without sending code anywhere. Review Git history separately if a credential was committed in any earlier clone or remote; deleting a value from the current files does not remove it from prior commits. Rotate any real credential that was ever committed.
+
+## Installable Windows release
+
+To build the Windows MSI and portable ZIP, use a Windows x64 machine with a Java 21 JDK, Maven 3.9+, and WiX Toolset 3. Run `scripts/build-windows-release.ps1 -InstallerType msi`; see [PUBLISHING.md](PUBLISHING.md) to publish a GitHub Release and [INSTALL-WINDOWS.md](INSTALL-WINDOWS.md) for branch server and workstation setup. GitHub Actions can build a release automatically when you push a `v*` tag. The installer bundles Java but requires PostgreSQL on the branch server.
 
 ## Language and appearance
 

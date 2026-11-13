@@ -8,11 +8,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Properties;
+import com.adam.warehouse.config.DatabaseConnection;
 
 public final class SettingsManager {
 
-    private static final Path SETTINGS_FILE =
-            Path.of("settings.properties");
+    private static final Path SETTINGS_FILE = DatabaseConnection.userDataDirectory().resolve("settings.properties");
+    private static final Path LEGACY_SETTINGS_FILE = Path.of("settings.properties");
 
     private static final String LANGUAGE_KEY =
             "language";
@@ -33,13 +34,21 @@ public final class SettingsManager {
 
         try {
 
-            if (Files.exists(SETTINGS_FILE)) {
+            Path settingsSource = Files.exists(SETTINGS_FILE) ? SETTINGS_FILE : LEGACY_SETTINGS_FILE;
+            if (Files.exists(settingsSource)) {
 
                 try (InputStream input =
-                             Files.newInputStream(SETTINGS_FILE)) {
+                             Files.newInputStream(settingsSource)) {
 
                     properties.load(input);
 
+                }
+
+                if (settingsSource.equals(LEGACY_SETTINGS_FILE)) {
+                    Files.createDirectories(SETTINGS_FILE.getParent());
+                    try (OutputStream output = Files.newOutputStream(SETTINGS_FILE)) {
+                        properties.store(output, "StockFlow ERP Settings");
+                    }
                 }
 
             }
@@ -84,6 +93,7 @@ public final class SettingsManager {
         updated.setProperty(DARK_MODE_KEY, Boolean.toString(enabled));
         Path temporary = SETTINGS_FILE.resolveSibling(SETTINGS_FILE.getFileName() + ".tmp");
         try {
+            Files.createDirectories(SETTINGS_FILE.getParent());
             try (OutputStream output = Files.newOutputStream(temporary)) {
                 updated.store(output, "StockFlow ERP Settings");
             }

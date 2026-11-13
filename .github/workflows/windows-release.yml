@@ -1,0 +1,59 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: '3.9.9'
+
+      - name: Install WiX Toolset 3
+        shell: powershell
+        run: |
+          choco install wixtoolset --version=3.11.2 --yes --no-progress
+          "C:\Program Files (x86)\WiX Toolset v3.11\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Check tag matches application version
+        shell: powershell
+        run: |
+          [xml]$pom = Get-Content pom.xml -Raw
+          if ($env:GITHUB_REF_NAME -ne "v$($pom.project.version)") { throw "Release tag must be v$($pom.project.version). Update pom.xml before tagging a new version." }
+
+      - name: Scan source for secrets
+        shell: powershell
+        run: .\scripts\scan-secrets.ps1
+
+      - name: Verify and package Windows app
+        shell: powershell
+        run: .\scripts\build-windows-release.ps1 -InstallerType msi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            target/release/StockFlow-*.msi
+            target/release/StockFlow-*-windows-x64.zip
+            target/release/StockFlow-*-deployment-tools.zip
+            target/release/INSTALL-WINDOWS.md
+            target/release/configure-branch-client.ps1

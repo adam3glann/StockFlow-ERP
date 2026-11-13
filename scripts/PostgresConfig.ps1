@@ -4,7 +4,11 @@ function Get-StockFlowDatabaseSettings {
     param([string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path)
 
     $fileSettings = @{}
-    $filePath = Join-Path $ProjectRoot 'config/database.properties'
+    $appData = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $env:USERPROFILE '.stockflow' }
+    $userConfigPath = Join-Path $appData 'StockFlow/database.properties'
+    if (!$env:APPDATA) { $userConfigPath = Join-Path $appData 'database.properties' }
+    $legacyConfigPath = Join-Path $ProjectRoot 'config/database.properties'
+    $filePath = if (Test-Path -LiteralPath $userConfigPath) { $userConfigPath } else { $legacyConfigPath }
     if (Test-Path -LiteralPath $filePath) {
         foreach ($line in Get-Content -LiteralPath $filePath) {
             if ($line -match '^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*)$' -and $Matches[1] -notmatch '^(#|!)') {
@@ -44,14 +48,14 @@ function Get-StockFlowDatabaseSettings {
         throw 'The configured database name or port is invalid.'
     }
 
-    return [pscustomobject]@{
-        Host = $dbHostName
-        Port = $dbPort
-        Name = $dbName
-        User = $dbUser
-        Password = $dbPassword
-        ProjectRoot = $ProjectRoot
-    }
+    $settingsObject = @{}
+    $settingsObject['Host'] = $dbHostName
+    $settingsObject['Port'] = $dbPort
+    $settingsObject['Name'] = $dbName
+    $settingsObject['User'] = $dbUser
+    $settingsObject['Password'] = $dbPassword
+    $settingsObject['ProjectRoot'] = $ProjectRoot
+    return [pscustomobject]$settingsObject
 }
 
 function New-StockFlowPasswordFile {

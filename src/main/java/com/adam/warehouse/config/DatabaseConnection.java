@@ -43,19 +43,22 @@ public final class DatabaseConnection {
 
     private static Properties loadLocalConfiguration() {
         Properties properties = new Properties();
-
-        if (Files.notExists(LOCAL_CONFIG_PATH)) {
-            return properties;
-        }
-
-        try (InputStream inputStream = Files.newInputStream(LOCAL_CONFIG_PATH)) {
+        Path userConfig = userDataDirectory().resolve("database.properties");
+        Path selected = Files.isRegularFile(userConfig) ? userConfig : LOCAL_CONFIG_PATH;
+        if (Files.notExists(selected)) return properties;
+        try (InputStream inputStream = Files.newInputStream(selected)) {
             properties.load(inputStream);
             return properties;
         } catch (IOException exception) {
-            throw new IllegalStateException(
-                    "Unable to read the local database configuration file.", exception
-            );
+            throw new IllegalStateException("Unable to read the local database configuration file.", exception);
         }
+    }
+
+    public static Path userDataDirectory() {
+        String appData = System.getenv("APPDATA");
+        if (appData != null && !appData.isBlank()) return Path.of(appData, "StockFlow");
+        String userHome = System.getProperty("user.home", ".");
+        return Path.of(userHome, ".stockflow");
     }
 
     private static String requiredSetting(String systemProperty, String propertyName,
